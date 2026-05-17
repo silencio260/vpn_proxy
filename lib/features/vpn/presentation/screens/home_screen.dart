@@ -52,18 +52,19 @@ class HomeScreen extends StatelessWidget {
   }
 
   void _onConnectTap(BuildContext context, VpnConnectionState state) {
-    if (state.isConnected || state.stage == VpnStage.disconnecting) {
-      context.read<VpnConnectionBloc>().add(const DisconnectVpnEvent());
+    final bloc = context.read<VpnConnectionBloc>();
+    // Cancel an in-progress connect, or disconnect an active one.
+    if (state.stage == VpnStage.connecting ||
+        state.stage == VpnStage.connected) {
+      bloc.add(const DisconnectVpnEvent());
+      return;
+    }
+    final serversState = context.read<VpnServersBloc>().state;
+    if (serversState is VpnServersLoaded &&
+        !serversState.selectedServer.isEmpty) {
+      bloc.add(ConnectVpnEvent(serversState.selectedServer));
     } else {
-      final serversState = context.read<VpnServersBloc>().state;
-      if (serversState is VpnServersLoaded &&
-          !serversState.selectedServer.isEmpty) {
-        context
-            .read<VpnConnectionBloc>()
-            .add(ConnectVpnEvent(serversState.selectedServer));
-      } else {
-        Navigator.pushNamed(context, Routes.location);
-      }
+      Navigator.pushNamed(context, Routes.location);
     }
   }
 }

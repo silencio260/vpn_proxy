@@ -22,7 +22,7 @@ class VpnConnectButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: state.isConnecting ? null : onTap,
+      onTap: state.stage == VpnStage.disconnecting ? null : onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 400),
         width: 160,
@@ -56,13 +56,13 @@ class VpnConnectButton extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              state.isConnecting
-                  ? (state.stage == VpnStage.disconnecting
-                      ? 'Disconnecting'
-                      : 'Connecting...')
-                  : state.isConnected
-                      ? 'Connected'
-                      : 'Tap to Connect',
+              state.stage == VpnStage.disconnecting
+                  ? 'Disconnecting'
+                  : state.stage == VpnStage.connecting
+                      ? 'Connecting...'
+                      : state.isConnected
+                          ? 'Connected'
+                          : 'Tap to Connect',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 12,

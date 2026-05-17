@@ -21,6 +21,11 @@ class VpnConnectionBloc
 
   StreamSubscription<String>? _stageSub;
   StreamSubscription<dynamic>? _statusSub;
+  Timer? _connectTimeout;
+  DateTime? _suppressExitUntil;
+
+  static const _connectTimeoutDuration = Duration(seconds: 25);
+  static const _restartSuppressWindow = Duration(seconds: 3);
 
   VpnConnectionBloc({
     required this.vpnEngine,
@@ -44,7 +49,19 @@ class VpnConnectionBloc
     ConnectVpnEvent event,
     Emitter<VpnConnectionState> emit,
   ) async {
+    // If already connecting/connected (e.g. user switching servers), stop the
+    // current session first so the engine can cleanly start the new one.
+    if (state.stage == VpnStage.connecting ||
+        state.stage == VpnStage.connected) {
+      // The pending stop will emit exiting/noprocess stage events; suppress
+      // them so they don't get mapped to error for the upcoming attempt.
+      _suppressExitUntil = DateTime.now().add(_restartSuppressWindow);
+      try {
+        await vpnEngine.stopVpn();
+      } catch (_) {}
+    }
     emit(state.copyWith(stage: VpnStage.connecting));
+    _armConnectTimeout();
     try {
       final config = VpnConfigEntity(
         country: event.server.countryLong,
@@ -54,11 +71,21 @@ class VpnConnectionBloc
       );
       await vpnEngine.startVpn(config);
     } catch (e) {
+      _connectTimeout?.cancel();
       emit(state.copyWith(
         stage: VpnStage.error,
         errorMessage: e.toString(),
       ));
     }
+  }
+
+  void _armConnectTimeout() {
+    _connectTimeout?.cancel();
+    _connectTimeout = Timer(_connectTimeoutDuration, () {
+      if (state.stage == VpnStage.connecting) {
+        add(const VpnStageChangedEvent('__timeout__'));
+      }
+    });
   }
 
   Future<void> _onDisconnect(
@@ -80,13 +107,65 @@ class VpnConnectionBloc
     VpnStageChangedEvent event,
     Emitter<VpnConnectionState> emit,
   ) {
-    final stage = switch (event.stage.toLowerCase()) {
+    final raw = event.stage.toLowerCase();
+    final suppressing = _suppressExitUntil != null &&
+        DateTime.now().isBefore(_suppressExitUntil!);
+    if (suppressing &&
+        (raw == 'exiting' ||
+            raw == 'noprocess' ||
+            raw == 'disconnected' ||
+            raw == 'no_connection' ||
+            raw == 'idle')) {
+      return;
+    }
+    // While actively connecting, stale "idle"/"disconnected"/"no_connection"
+    // events from the engine's startup are noise — a real teardown reaches us
+    // via DisconnectVpnEvent (which sets disconnecting first) or exiting/noprocess.
+    if (state.stage == VpnStage.connecting &&
+        (raw == 'disconnected' ||
+            raw == 'no_connection' ||
+            raw == 'idle')) {
+      return;
+    }
+    final stage = switch (raw) {
       'connected' => VpnStage.connected,
-      'connecting' || 'wait_connection' || 'authenticating' => VpnStage.connecting,
+      'disconnected' || 'idle' || 'no_connection' => VpnStage.disconnected,
       'disconnecting' => VpnStage.disconnecting,
-      _ => VpnStage.disconnected,
+      'denied' || 'error' || 'invalid' => VpnStage.error,
+      'connecting' ||
+      'prepare' ||
+      'vpn_generate_config' ||
+      'resolve' ||
+      'tcp_connect' ||
+      'udp_connect' ||
+      'wait' ||
+      'wait_connection' ||
+      'auth' ||
+      'authenticating' ||
+      'get_config' ||
+      'assign_ip' ||
+      'add_routes' ||
+      'reconnect' =>
+        VpnStage.connecting,
+      // Engine exited without ever reaching connected → surface a failure so
+      // the UI doesn't get stuck spinning forever (e.g. unreachable server).
+      'exiting' || 'noprocess' =>
+        state.stage == VpnStage.connecting
+            ? VpnStage.error
+            : VpnStage.disconnected,
+      '__timeout__' => VpnStage.error,
+      _ => state.stage,
     };
-    emit(state.copyWith(stage: stage));
+    if (stage == state.stage) return;
+    final errorMessage = stage == VpnStage.error
+        ? (raw == '__timeout__' ? 'Connection timed out' : 'Connection failed')
+        : null;
+    if (stage == VpnStage.connected ||
+        stage == VpnStage.error ||
+        stage == VpnStage.disconnected) {
+      _connectTimeout?.cancel();
+    }
+    emit(state.copyWith(stage: stage, errorMessage: errorMessage));
     if (stage == VpnStage.connected) add(const LoadIpDetailsEvent());
   }
 
@@ -110,6 +189,7 @@ class VpnConnectionBloc
 
   @override
   Future<void> close() {
+    _connectTimeout?.cancel();
     _stageSub?.cancel();
     _statusSub?.cancel();
     return super.close();
