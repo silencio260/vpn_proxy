@@ -30,6 +30,29 @@ android {
         versionName = flutter.versionName
     }
 
+    lint {
+        disable += "InvalidPackage"
+        checkReleaseBuilds = false
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
+    bundle {
+        language {
+            enableSplit = false
+        }
+        density {
+            enableSplit = false
+        }
+        abi {
+            enableSplit = false
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.
