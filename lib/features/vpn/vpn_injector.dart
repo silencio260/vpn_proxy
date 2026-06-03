@@ -15,6 +15,7 @@ import 'domain/usecases/save_selected_vpn_usecase.dart';
 import 'presentation/bloc/vpn_connection_bloc/vpn_connection_bloc.dart';
 import 'presentation/bloc/vpn_servers_bloc/vpn_servers_bloc.dart';
 import 'services/vpn_engine_service.dart';
+import 'services/vpn_server_health_service.dart';
 
 Future<void> initVpn(GetIt sl) async {
   // External
@@ -32,6 +33,9 @@ Future<void> initVpn(GetIt sl) async {
 
   // Services
   sl.registerLazySingleton<VpnEngineService>(() => VpnEngineService());
+  sl.registerLazySingleton<VpnServerHealthService>(
+    () => VpnServerHealthService(vpnEngine: sl<VpnEngineService>()),
+  );
 
   // Data sources
   sl.registerLazySingleton<VpnRemoteDataSource>(
@@ -55,9 +59,7 @@ Future<void> initVpn(GetIt sl) async {
   sl.registerLazySingleton(
     () => GetCachedVpnServersUseCase(repo: sl<VpnBaseRepo>()),
   );
-  sl.registerLazySingleton(
-    () => GetIpDetailsUseCase(repo: sl<VpnBaseRepo>()),
-  );
+  sl.registerLazySingleton(() => GetIpDetailsUseCase(repo: sl<VpnBaseRepo>()));
   sl.registerLazySingleton(
     () => SaveSelectedVpnUseCase(repo: sl<VpnBaseRepo>()),
   );
@@ -68,6 +70,8 @@ Future<void> initVpn(GetIt sl) async {
       getVpnServers: sl<GetVpnServersUseCase>(),
       getCachedVpnServers: sl<GetCachedVpnServersUseCase>(),
       saveSelectedVpn: sl<SaveSelectedVpnUseCase>(),
+      localDataSource: sl<VpnLocalDataSource>(),
+      healthService: sl<VpnServerHealthService>(),
     ),
   );
   sl.registerFactory(

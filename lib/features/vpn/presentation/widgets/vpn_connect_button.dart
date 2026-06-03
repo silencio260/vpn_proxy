@@ -13,66 +13,83 @@ class VpnConnectButton extends StatelessWidget {
     required this.onTap,
   });
 
-  Color get _activeColor => state.isConnected
-      ? AppColors.connected
-      : state.isConnecting
-          ? AppColors.connecting
-          : AppColors.primary;
-
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: state.stage == VpnStage.disconnecting ? null : onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 400),
-        width: 160,
-        height: 160,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(
-            colors: [
-              _activeColor.withValues(alpha: 0.15),
-              _activeColor.withValues(alpha: 0.5),
-            ],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: _activeColor.withValues(alpha: 0.4),
-              blurRadius: 30,
-              spreadRadius: 5,
+    final palette = context.palette;
+    final active = switch (state.stage) {
+      VpnStage.connected => palette.success,
+      VpnStage.connecting || VpnStage.disconnecting => palette.warning,
+      _ => palette.primary,
+    };
+    final label = switch (state.stage) {
+      VpnStage.connected => 'Tap To Disconnect',
+      VpnStage.connecting => 'Connecting…',
+      VpnStage.disconnecting => 'Disconnecting…',
+      _ => 'Tap To Connect',
+    };
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          onTap: state.stage == VpnStage.disconnecting ? null : onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 400),
+            width: 200,
+            height: 200,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: active.withValues(alpha: 0.08),
             ),
-          ],
-          border: Border.all(color: _activeColor, width: 2),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              state.isConnected
-                  ? Icons.power_settings_new
-                  : Icons.power_settings_new_outlined,
-              size: 48,
-              color: Colors.white,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              state.stage == VpnStage.disconnecting
-                  ? 'Disconnecting'
-                  : state.stage == VpnStage.connecting
-                      ? 'Connecting...'
-                      : state.isConnected
-                          ? 'Connected'
-                          : 'Tap to Connect',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.5,
+            child: Center(
+              child: Container(
+                width: 160,
+                height: 160,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: active.withValues(alpha: 0.14),
+                ),
+                child: Center(
+                  child: Container(
+                    width: 124,
+                    height: 124,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [active, active.withValues(alpha: 0.75)],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: active.withValues(alpha: 0.4),
+                          blurRadius: 24,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.power_settings_new_rounded,
+                      size: 56,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
               ),
             ),
-          ],
+          ),
         ),
-      ),
+        const SizedBox(height: 18),
+        Text(
+          label,
+          style: TextStyle(
+            color: palette.textSecondary,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.4,
+          ),
+        ),
+      ],
     );
   }
 }

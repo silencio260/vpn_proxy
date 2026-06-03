@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../../../config/routes_manager.dart';
-import '../../../../../core/utils/app_colors.dart';
+import '../../../../config/routes_manager.dart';
+import '../../../../core/utils/app_colors.dart';
 import '../bloc/vpn_servers_bloc/vpn_servers_bloc.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -14,6 +15,8 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
+  static const _onboardingSeenKey = 'onboarding_seen';
+
   late final AnimationController _controller;
   late final Animation<double> _scale;
   late final Animation<double> _opacity;
@@ -23,7 +26,7 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1100),
     );
     _scale = Tween<double>(begin: 0.6, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
@@ -32,24 +35,28 @@ class _SplashScreenState extends State<SplashScreen>
       CurvedAnimation(parent: _controller, curve: Curves.easeIn),
     );
 
-    _controller.forward().then((_) {
-      final bloc = context.read<VpnServersBloc>();
-      bloc.add(const LoadCachedVpnServersEvent());
+    _controller.forward().then((_) => _bootstrap());
+  }
 
-      // If the cache is empty, kick off a background network fetch so servers
-      // are ready by the time the user taps connect.
-      bloc.stream.firstWhere((s) => s is! VpnServersLoading).then((s) {
-        if (s is VpnServersLoaded && s.servers.isEmpty) {
-          bloc.add(const FetchVpnServersEvent());
-        }
-      });
-
-      Future.delayed(const Duration(milliseconds: 600), () {
-        if (mounted) {
-          Navigator.pushReplacementNamed(context, Routes.home);
-        }
-      });
+  Future<void> _bootstrap() async {
+    final bloc = context.read<VpnServersBloc>();
+    bloc.add(const LoadCachedVpnServersEvent());
+    // Kick a background fetch if cache is empty.
+    bloc.stream.firstWhere((s) => s is! VpnServersLoading).then((s) {
+      if (s is VpnServersLoaded && s.servers.isEmpty) {
+        bloc.add(const FetchVpnServersEvent());
+      }
     });
+
+    final prefs = await SharedPreferences.getInstance();
+    final seen = prefs.getBool(_onboardingSeenKey) ?? false;
+
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(
+      context,
+      seen ? Routes.main : Routes.onboarding,
+    );
   }
 
   @override
@@ -60,8 +67,9 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: palette.background,
       body: Center(
         child: FadeTransition(
           opacity: _opacity,
@@ -71,47 +79,47 @@ class _SplashScreenState extends State<SplashScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 100,
-                  height: 100,
+                  width: 110,
+                  height: 110,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        AppColors.primary.withValues(alpha: 0.3),
-                        AppColors.primary,
+                        palette.primary.withValues(alpha: 0.25),
+                        palette.primary,
                       ],
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.5),
-                        blurRadius: 30,
-                        spreadRadius: 5,
+                        color: palette.primary.withValues(alpha: 0.45),
+                        blurRadius: 36,
+                        spreadRadius: 4,
                       ),
                     ],
                   ),
                   child: const Icon(
-                    Icons.shield,
-                    size: 52,
+                    Icons.shield_rounded,
+                    size: 56,
                     color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 24),
-                const Text(
+                Text(
                   'VPN Proxy',
                   style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
+                    color: palette.textPrimary,
+                    fontSize: 30,
                     fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
+                    letterSpacing: 1.1,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Secure. Private. Free.',
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.5),
+                    color: palette.textSecondary,
                     fontSize: 14,
-                    letterSpacing: 0.5,
+                    letterSpacing: 0.4,
                   ),
                 ),
               ],
