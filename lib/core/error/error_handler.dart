@@ -1,16 +1,26 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:http/http.dart' as http;
 
 import '../api/response_code.dart';
 import 'failure.dart';
 
 class ErrorHandler {
   static Failure handle(dynamic error) {
-    if (error is DioException) {
+    if (error is Failure) {
+      return error;
+    } else if (error is DioException) {
       return _handleDioError(error);
     } else if (error is SocketException) {
       return const NoInternetConnectionFailure();
+    } else if (error is http.ClientException) {
+      return const NoInternetConnectionFailure();
+    } else if (error is TimeoutException) {
+      return const ConnectTimeOutFailure();
+    } else if (error is FormatException) {
+      return const UnexpectedFailure();
     }
     return const UnexpectedFailure();
   }

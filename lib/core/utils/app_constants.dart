@@ -8,4 +8,8 @@ class AppConstants {
   static const Duration connectTimeout = Duration(seconds: 30);
   static const Duration receiveTimeout = Duration(seconds: 30);
   static const Duration vpnHealthCacheTtl = Duration(hours: 10);
+
+  static const String firestorePublishedProxiesUrl =
+      'https://firestore.googleapis.com/v1/projects/vpn-proxy-project-9bb30/databases/(default)/documents/published/current';
+  static const String proxyListCacheKey = 'proxy_list';
 }

@@ -13,7 +13,11 @@ import '../widgets/vpn_server_card.dart';
 const int _kFreeCount = 8;
 
 class LocationScreen extends StatefulWidget {
-  const LocationScreen({super.key});
+  /// When embedded (e.g. inside [ServerSelectScreen]'s toggle), the screen
+  /// renders only its list body without its own Scaffold/AppBar.
+  final bool embedded;
+
+  const LocationScreen({super.key, this.embedded = false});
 
   @override
   State<LocationScreen> createState() => _LocationScreenState();
@@ -34,6 +38,8 @@ class _LocationScreenState extends State<LocationScreen> {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    final body = _buildBody(context, palette);
+    if (widget.embedded) return body;
     return Scaffold(
       backgroundColor: palette.background,
       appBar: AppBar(
@@ -59,8 +65,13 @@ class _LocationScreenState extends State<LocationScreen> {
           ),
         ],
       ),
-      body: BlocBuilder<VpnServersBloc, VpnServersState>(
-        builder: (context, state) {
+      body: body,
+    );
+  }
+
+  Widget _buildBody(BuildContext context, AppPalette palette) {
+    return BlocBuilder<VpnServersBloc, VpnServersState>(
+      builder: (context, state) {
           if (state is VpnServersLoading) {
             return Center(
               child: CircularProgressIndicator(color: palette.primary),
@@ -197,8 +208,7 @@ class _LocationScreenState extends State<LocationScreen> {
             ),
           );
         },
-      ),
-    );
+      );
   }
 
   void _select(BuildContext context, VpnServerEntity s) {
