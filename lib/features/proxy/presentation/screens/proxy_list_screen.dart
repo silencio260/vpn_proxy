@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/utils/app_colors.dart';
+import '../../../../core/utils/country_util.dart';
 import '../../domain/entities/proxy_entity.dart';
 import '../bloc/proxy_bloc/proxy_bloc.dart';
 import '../widgets/proxy_card.dart';
 
 class ProxyListScreen extends StatefulWidget {
-  /// When embedded (e.g. inside [ServerSelectScreen]'s toggle), the screen
-  /// renders only its list body without its own Scaffold/AppBar.
+  /// When embedded inside another screen, renders only its list body
+  /// without its own Scaffold/AppBar.
   final bool embedded;
 
   const ProxyListScreen({super.key, this.embedded = false});
@@ -43,7 +44,7 @@ class _ProxyListScreenState extends State<ProxyListScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Select Proxy',
+          'Select Server',
           style: TextStyle(
             color: palette.textPrimary,
             fontWeight: FontWeight.w700,
@@ -93,23 +94,19 @@ class _ProxyListScreenState extends State<ProxyListScreen> {
                     ),
               );
             }
+            final q = _query.toLowerCase();
             final filtered =
                 _query.isEmpty
                     ? all
-                    : all
-                        .where(
-                          (p) =>
-                              p.remark.toLowerCase().contains(
-                                _query.toLowerCase(),
-                              ) ||
-                              p.address.toLowerCase().contains(
-                                _query.toLowerCase(),
-                              ) ||
-                              p.type.toLowerCase().contains(
-                                _query.toLowerCase(),
-                              ),
-                        )
-                        .toList();
+                    : all.where((p) {
+                      final code = p.deep?.egressCountry ?? '';
+                      final country = CountryUtil.name(code);
+                      return p.remark.toLowerCase().contains(q) ||
+                          p.address.toLowerCase().contains(q) ||
+                          p.type.toLowerCase().contains(q) ||
+                          code.toLowerCase().contains(q) ||
+                          country.toLowerCase().contains(q);
+                    }).toList();
 
             return ListView(
               padding: const EdgeInsets.only(top: 8, bottom: 24),

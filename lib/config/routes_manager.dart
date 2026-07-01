@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../features/proxy/presentation/screens/proxy_list_screen.dart';
 import '../features/vpn/presentation/screens/ads_screen.dart';
 import '../features/vpn/presentation/screens/home_screen.dart';
-// Routes.location now points to ServerSelectScreen, which hosts both the
-// Firestore-backed proxy list (ProxyListScreen) and the legacy vpngate list
-// (LocationScreen) behind a toggle.
+// Routes.location now points to the Firestore-backed proxy list
+// (ProxyListScreen). The legacy vpngate list (LocationScreen) is no longer
+// routed.
 import '../features/vpn/presentation/screens/main_shell.dart';
 import '../features/vpn/presentation/screens/onboarding_screen.dart';
 import '../features/vpn/presentation/screens/payment_success_screen.dart';
 import '../features/vpn/presentation/screens/premium_screen.dart';
 import '../features/vpn/presentation/screens/profile_screen.dart';
-import '../features/vpn/presentation/screens/server_select_screen.dart';
 import '../features/vpn/presentation/screens/speed_test_screen.dart';
 import '../features/vpn/presentation/screens/splash_screen.dart';
 
@@ -39,7 +39,7 @@ class AppRouter {
       case Routes.home:
         return MaterialPageRoute(builder: (_) => const HomeScreen());
       case Routes.location:
-        return MaterialPageRoute(builder: (_) => const ServerSelectScreen());
+        return MaterialPageRoute(builder: (_) => const ProxyListScreen());
       case Routes.premium:
         return MaterialPageRoute(builder: (_) => const PremiumScreen());
       case Routes.paymentSuccess:

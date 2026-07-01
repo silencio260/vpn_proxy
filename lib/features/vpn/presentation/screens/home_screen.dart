@@ -5,6 +5,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../config/routes_manager.dart';
 import '../../../../../core/utils/app_colors.dart';
+import '../../../../../core/utils/country_util.dart';
+import '../../../proxy/presentation/bloc/proxy_bloc/proxy_bloc.dart';
 import '../bloc/vpn_connection_bloc/vpn_connection_bloc.dart';
 import '../bloc/vpn_servers_bloc/vpn_servers_bloc.dart';
 import '../widgets/vpn_connect_button.dart';
@@ -286,20 +288,20 @@ class _SelectedServerCard extends StatelessWidget {
   final AppPalette palette;
   const _SelectedServerCard({required this.palette});
 
-  String _flagEmoji(String code) {
-    if (code.isEmpty) return '🌐';
-    return code.toUpperCase().runes
-        .map((r) => String.fromCharCode(r - 0x41 + 0x1F1E6))
-        .join();
-  }
-
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<VpnServersBloc, VpnServersState>(
+    return BlocBuilder<ProxyBloc, ProxyState>(
       builder: (context, state) {
-        final server =
-            state is VpnServersLoaded ? state.selectedServer : null;
-        final hasServer = server != null && !server.isEmpty;
+        final proxy = state is ProxyLoaded ? state.selectedProxy : null;
+        final hasProxy = proxy != null && !proxy.isEmpty;
+        final code = proxy?.deep?.egressCountry;
+        final country = CountryUtil.name(code);
+        final title =
+            hasProxy
+                ? (country.isNotEmpty
+                    ? country
+                    : (proxy.remark.isEmpty ? proxy.address : proxy.remark))
+                : 'Tap to select a server';
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -336,7 +338,7 @@ class _SelectedServerCard extends StatelessWidget {
                         color: palette.surface,
                       ),
                       child: Text(
-                        _flagEmoji(hasServer ? server.countryShort : ''),
+                        CountryUtil.flagEmoji(hasProxy ? code : null),
                         style: const TextStyle(fontSize: 22),
                       ),
                     ),
@@ -369,9 +371,7 @@ class _SelectedServerCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            hasServer
-                                ? server.countryLong
-                                : 'Tap to select a server',
+                            title,
                             style: TextStyle(
                               color: palette.textSecondary,
                               fontSize: 12,

@@ -13,8 +13,8 @@ import '../widgets/vpn_server_card.dart';
 const int _kFreeCount = 8;
 
 class LocationScreen extends StatefulWidget {
-  /// When embedded (e.g. inside [ServerSelectScreen]'s toggle), the screen
-  /// renders only its list body without its own Scaffold/AppBar.
+  /// When embedded inside another screen, renders only its list body
+  /// without its own Scaffold/AppBar.
   final bool embedded;
 
   const LocationScreen({super.key, this.embedded = false});
