@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' show PointMode;
 
 import 'package:flutter/material.dart';
 
@@ -40,7 +41,7 @@ class _VpnConnectButtonState extends State<VpnConnectButton>
     super.initState();
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 4800),
+      duration: const Duration(milliseconds: 9000),
     );
     _syncPulse();
   }
@@ -159,10 +160,13 @@ class _VpnConnectButtonState extends State<VpnConnectButton>
   }
 }
 
-/// Draws soft, organic wave rings that drift outward from the button like
-/// flowing fluid: each ring is a circle perturbed by overlapping sine bands
-/// whose phases rotate as the ring expands, so the crests appear to flow
-/// around the button rather than pulse as rigid circles.
+/// Paints a dot-matrix wave cloud around the button, like a topographic
+/// point mesh: concentric rings of tiny dots, dense and bright against the
+/// button's edge, thinning and loosening as they spread out. Layered sine
+/// folds displace each ring per-angle — outer rings wave more than inner
+/// ones — so the whole cloud undulates organically instead of pulsing.
+/// All time terms are whole multiples of one 2*pi cycle so the loop never
+/// visibly restarts.
 class _FluidWavePainter extends CustomPainter {
   final double progress;
   final Color color;
@@ -174,53 +178,45 @@ class _FluidWavePainter extends CustomPainter {
     required this.innerRadius,
   });
 
-  static const _waveCount = 3;
-  static const _segments = 90;
+  static const _rings = 16;
+  static const _dotSpacing = 7.0;
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
     final maxRadius = size.width / 2;
+    final span = maxRadius - innerRadius;
+    final t = progress * 2 * math.pi;
 
-    for (var i = 0; i < _waveCount; i++) {
-      final waveProgress = (progress + i / _waveCount) % 1.0;
-      final baseRadius =
-          innerRadius + (maxRadius - innerRadius) * waveProgress;
-      // Quadratic fade so waves dissolve softly well before the edge.
-      final fade = (1.0 - waveProgress) * (1.0 - waveProgress);
-      final opacity = fade * 0.32;
-      if (opacity < 0.005) continue;
+    for (var i = 0; i < _rings; i++) {
+      final f = i / (_rings - 1); // 0 at the button edge, 1 farthest out
+      final base = innerRadius + 5 + span * 0.78 * f;
 
-      // Amplitude grows as the wave travels, so ripples loosen up like
-      // fluid spreading out. Phases drift in opposite directions per band
-      // to give a flowing, non-repeating feel.
-      final amplitude = 3.0 + 9.0 * waveProgress;
-      final drift = progress * 2 * math.pi;
-      final phaseA = drift + i * 2.1;
-      final phaseB = -drift * 1.6 + i * 4.2;
+      // Outer rings fold more deeply than inner ones, so the cloud's edge
+      // waves while the core stays anchored to the button.
+      final amp = span * (0.04 + 0.17 * f);
 
-      final path = Path();
-      for (var s = 0; s <= _segments; s++) {
-        final theta = 2 * math.pi * s / _segments;
-        final wobble = amplitude *
-            (0.6 * math.sin(3 * theta + phaseA) +
-                0.4 * math.sin(5 * theta + phaseB));
-        final r = baseRadius + wobble;
-        final point = center + Offset(math.cos(theta), math.sin(theta)) * r;
-        if (s == 0) {
-          path.moveTo(point.dx, point.dy);
-        } else {
-          path.lineTo(point.dx, point.dy);
-        }
+      final count = (2 * math.pi * base / _dotSpacing).round();
+      final points = <Offset>[];
+      for (var k = 0; k < count; k++) {
+        // Slight per-ring twist keeps dots from lining up on rigid spokes.
+        final theta = 2 * math.pi * k / count + f * 0.5;
+        final fold = 0.5 * math.sin(2 * theta + t + f * 4.0) +
+            0.3 * math.sin(3 * theta - t + f * 7.0) +
+            0.2 * math.sin(5 * theta + 2 * t + f * 2.0);
+        final r = base + amp * fold;
+        points.add(center + Offset(math.cos(theta), math.sin(theta)) * r);
       }
-      path.close();
 
+      // Dense and bright near the button, dissolving toward the edge,
+      // with a gentle shimmer drifting through the rings.
+      final shimmer = 0.85 + 0.15 * math.sin(t * 2 + f * 6.0);
+      final opacity = math.pow(1.0 - f, 1.6) * 0.5 * shimmer + 0.02;
       final paint = Paint()
-        ..color = color.withValues(alpha: opacity)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5 * fade + 0.8
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
-      canvas.drawPath(path, paint);
+        ..color = color.withValues(alpha: opacity.toDouble())
+        ..strokeWidth = 2.2 - 0.8 * f
+        ..strokeCap = StrokeCap.round;
+      canvas.drawPoints(PointMode.points, points, paint);
     }
   }
 
