@@ -78,14 +78,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Column(
                       children: [
-                        const SizedBox(height: 8),
-                        _SpeedRow(state: connectionState, palette: palette),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 40),
                         VpnConnectButton(
                           state: connectionState,
                           onTap: () => _onConnectTap(context, connectionState),
                         ),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 36),
                         Text(
                           _statusLabel(connectionState.stage),
                           style: TextStyle(
@@ -94,7 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 16),
                         Text(
                           _formatTimer(_elapsed),
                           style: TextStyle(
@@ -104,9 +102,13 @@ class _HomeScreenState extends State<HomeScreen> {
                             letterSpacing: 1.5,
                           ),
                         ),
-                        const SizedBox(height: 28),
+                        const SizedBox(height: 56),
                         _SelectedServerCard(palette: palette),
-                        const SizedBox(height: 24),
+                        if (connectionState.stage == VpnStage.connected) ...[
+                          const SizedBox(height: 36),
+                          _SpeedRow(state: connectionState, palette: palette),
+                        ],
+                        const SizedBox(height: 56),
                       ],
                     ),
                   ),
