@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../../core/analytics/app_analytics_service.dart';
 import '../../../../vpn/domain/entities/vpn_status_entity.dart';
 import '../../../../vpn/presentation/bloc/vpn_connection_bloc/vpn_connection_bloc.dart';
 import '../../../domain/entities/proxy_entity.dart';
@@ -23,6 +24,10 @@ class ProxyConnectionBloc extends Bloc<ProxyConnectionEvent, VpnConnectionState>
   StreamSubscription<dynamic>? _statusSub;
   Timer? _connectTimeout;
   DateTime? _suppressExitUntil;
+
+  /// Proxy of the in-flight/last connection attempt, kept so stage transitions
+  /// (which don't carry the proxy) can be tagged with its metadata in analytics.
+  ProxyEntity? _lastProxy;
 
   static const _connectTimeoutDuration = Duration(seconds: 25);
   static const _restartSuppressWindow = Duration(seconds: 3);
@@ -46,6 +51,8 @@ class ProxyConnectionBloc extends Bloc<ProxyConnectionEvent, VpnConnectionState>
     ConnectProxyEvent event,
     Emitter<VpnConnectionState> emit,
   ) async {
+    _lastProxy = event.proxy;
+    AppAnalyticsService.instance.logProxyConnectTapped(event.proxy);
     // If already connecting/connected (e.g. user switching proxies), stop the
     // current session first so the engine can cleanly start the new one.
     if (state.stage == VpnStage.connecting ||
@@ -83,6 +90,7 @@ class ProxyConnectionBloc extends Bloc<ProxyConnectionEvent, VpnConnectionState>
     DisconnectProxyEvent event,
     Emitter<VpnConnectionState> emit,
   ) async {
+    AppAnalyticsService.instance.logProxyDisconnected();
     emit(state.copyWith(stage: VpnStage.disconnecting));
     try {
       await engine.stopProxy();
@@ -130,6 +138,19 @@ class ProxyConnectionBloc extends Bloc<ProxyConnectionEvent, VpnConnectionState>
         stage == VpnStage.error ||
         stage == VpnStage.disconnected) {
       _connectTimeout?.cancel();
+    }
+    // Report the terminal outcome of the current attempt (this block only runs
+    // on an actual stage change, so each outcome is logged once).
+    final proxy = _lastProxy;
+    if (proxy != null) {
+      if (stage == VpnStage.connected) {
+        AppAnalyticsService.instance.logProxyConnected(proxy);
+      } else if (stage == VpnStage.error) {
+        AppAnalyticsService.instance.logProxyConnectFailed(
+          proxy,
+          reason: errorMessage,
+        );
+      }
     }
     emit(state.copyWith(stage: stage, errorMessage: errorMessage));
   }

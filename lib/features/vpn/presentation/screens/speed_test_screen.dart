@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../../core/analytics/app_analytics_service.dart';
 import '../../../../../core/utils/app_colors.dart';
 import '../bloc/vpn_connection_bloc/vpn_connection_bloc.dart';
 
@@ -37,6 +38,7 @@ class _SpeedTestScreenState extends State<SpeedTestScreen>
   void _start() {
     final rng = Random();
     final target = 35 + rng.nextInt(70).toDouble();
+    AppAnalyticsService.instance.logSpeedTestStarted();
     setState(() {
       _running = true;
       _result = 0;
@@ -48,12 +50,20 @@ class _SpeedTestScreenState extends State<SpeedTestScreen>
       CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
     )..addListener(() => setState(() => _result = _needle.value));
     _controller.forward(from: 0).then((_) {
+      final ping = 8 + rng.nextInt(20);
+      final down = target.round();
+      final up = (target * 0.6).round();
       setState(() {
         _running = false;
-        _ping = 8 + rng.nextInt(20);
-        _down = target.round();
-        _up = (target * 0.6).round();
+        _ping = ping;
+        _down = down;
+        _up = up;
       });
+      AppAnalyticsService.instance.logSpeedTestCompleted(
+        downloadMbps: down.toDouble(),
+        uploadMbps: up.toDouble(),
+        pingMs: ping,
+      );
     });
   }
 
