@@ -7,8 +7,11 @@ import '../../../../../config/routes_manager.dart';
 import '../../../../../core/utils/app_colors.dart';
 import '../../../../../core/utils/country_util.dart';
 import '../../../proxy/presentation/bloc/proxy_bloc/proxy_bloc.dart';
+import '../../../proxy/presentation/bloc/proxy_connection_bloc/proxy_connection_bloc.dart';
+// VpnConnectionBloc is imported for the shared VpnConnectionState/VpnStage
+// types (declared in its library); the connect flow is driven by
+// ProxyConnectionBloc.
 import '../bloc/vpn_connection_bloc/vpn_connection_bloc.dart';
-import '../bloc/vpn_servers_bloc/vpn_servers_bloc.dart';
 import '../widgets/vpn_connect_button.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -27,7 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      final stage = context.read<VpnConnectionBloc>().state.stage;
+      final stage = context.read<ProxyConnectionBloc>().state.stage;
       if (stage == VpnStage.connected) {
         setState(() => _elapsed += const Duration(seconds: 1));
       }
@@ -54,7 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: palette.background,
       body: SafeArea(
-        child: BlocConsumer<VpnConnectionBloc, VpnConnectionState>(
+        child: BlocConsumer<ProxyConnectionBloc, VpnConnectionState>(
           listener: (context, state) {
             if (_lastStage != state.stage) {
               if (state.stage == VpnStage.connected &&
@@ -125,16 +128,17 @@ class _HomeScreenState extends State<HomeScreen> {
       };
 
   void _onConnectTap(BuildContext context, VpnConnectionState state) {
-    final bloc = context.read<VpnConnectionBloc>();
+    final bloc = context.read<ProxyConnectionBloc>();
     if (state.stage == VpnStage.connecting ||
         state.stage == VpnStage.connected) {
-      bloc.add(const DisconnectVpnEvent());
+      bloc.add(const DisconnectProxyEvent());
       return;
     }
-    final serversState = context.read<VpnServersBloc>().state;
-    if (serversState is VpnServersLoaded &&
-        !serversState.selectedServer.isEmpty) {
-      bloc.add(ConnectVpnEvent(serversState.selectedServer));
+    final proxyState = context.read<ProxyBloc>().state;
+    final selected =
+        proxyState is ProxyLoaded ? proxyState.selectedProxy : null;
+    if (selected != null && !selected.isEmpty) {
+      bloc.add(ConnectProxyEvent(selected));
     } else {
       Navigator.pushNamed(context, Routes.location);
     }

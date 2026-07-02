@@ -34,8 +34,16 @@ dependencies:
   # Local storage
   shared_preferences: ^2.5.4
 
-  # VPN engine (provides vpnControl / vpnStage / vpnStatus channels)
-  openvpn_flutter: ^1.3.3
+  # Proxy engine (Xray-core Android VpnService; dials vless/vmess/trojan/ss
+  # share links from the Firestore proxy list).
+  #
+  # NOTE: openvpn_flutter was removed — it and flutter_v2ray are both built with
+  # Go's gomobile, which emits its native library under the fixed name
+  # `libgojni.so`. Two such plugins cannot coexist in one APK (duplicate
+  # `lib/<abi>/libgojni.so` at merge time). The app is proxy-only, so the Xray
+  # engine wins and the OpenVPN engine is now a pure-Dart stub
+  # (features/vpn/services/vpn_engine_service.dart).
+  flutter_v2ray: ^1.0.4
 
   # UI
   lottie: ^3.3.1

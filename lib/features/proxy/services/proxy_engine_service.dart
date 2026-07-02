@@ -1,0 +1,102 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_v2ray/flutter_v2ray.dart';
+
+import '../../vpn/data/models/vpn_status_model.dart';
+import '../domain/entities/proxy_entity.dart';
+
+/// Wraps the Xray-core Android VpnService (via `flutter_v2ray`) so the app can
+/// dial the vless/vmess/trojan/shadowsocks share links published in the
+/// Firestore proxy list. Mirrors [VpnEngineService]'s surface (two broadcast
+/// streams + start/stop) so a connection bloc can consume either engine the
+/// same way — stage strings are normalised to the same lowercase tokens the
+/// connection state-machine already understands ('connected'/'connecting'/
+/// 'disconnected'/'error').
+class ProxyEngineService {
+  late final FlutterV2ray _engine;
+  Future<void>? _initFuture;
+
+  final _stageController = StreamController<String>.broadcast();
+  final _statusController = StreamController<VpnStatusModel>.broadcast();
+
+  Stream<String> get stageStream => _stageController.stream;
+  Stream<VpnStatusModel> get statusStream => _statusController.stream;
+
+  ProxyEngineService() {
+    _engine = FlutterV2ray(
+      onStatusChanged: (status) {
+        _stageController.add(_mapState(status.state));
+        _statusController.add(
+          VpnStatusModel(
+            duration: status.duration,
+            byteIn: _formatSpeed(status.downloadSpeed),
+            byteOut: _formatSpeed(status.uploadSpeed),
+            lastPacketReceive: '0',
+          ),
+        );
+      },
+    );
+    _initFuture = _engine.initializeV2Ray();
+  }
+
+  Future<void> _ensureInitialized() =>
+      _initFuture ??= _engine.initializeV2Ray();
+
+  Future<void> startProxy(ProxyEntity proxy) async {
+    await _ensureInitialized();
+
+    // The `raw` field is a standard share link (ss://, vless://, vmess://,
+    // trojan://). parseFromURL throws on anything it can't understand — let it
+    // bubble up so the bloc surfaces a clear error rather than hanging.
+    final V2RayURL parsed = FlutterV2ray.parseFromURL(proxy.raw);
+
+    final granted = await _engine.requestPermission();
+    if (!granted) throw Exception('VPN permission denied');
+
+    final remark = parsed.remark.isNotEmpty
+        ? parsed.remark
+        : (proxy.remark.isNotEmpty ? proxy.remark : proxy.address);
+
+    debugPrint('[PROXY] starting Xray for ${proxy.type} → $remark');
+    await _engine.startV2Ray(
+      remark: remark,
+      config: parsed.getFullConfiguration(),
+      proxyOnly: false,
+    );
+  }
+
+  Future<void> stopProxy() async {
+    await _engine.stopV2Ray();
+  }
+
+  void dispose() {
+    _stageController.close();
+    _statusController.close();
+  }
+
+  /// Normalise the plugin's status string to the tokens the connection bloc's
+  /// stage-mapper expects. The native side reports values like "CONNECTED" /
+  /// "DISCONNECTED"; match defensively in case a version prefixes them.
+  String _mapState(String raw) {
+    final s = raw.toLowerCase();
+    if (s.contains('disconnected')) return 'disconnected';
+    if (s.contains('connected')) return 'connected';
+    if (s.contains('connecting')) return 'connecting';
+    if (s.contains('error')) return 'error';
+    return s;
+  }
+
+  String _formatSpeed(int bytesPerSecond) {
+    if (bytesPerSecond <= 0) return '0 KB/s';
+    const kb = 1024;
+    const mb = 1024 * 1024;
+    if (bytesPerSecond >= mb) {
+      return '${(bytesPerSecond / mb).toStringAsFixed(1)} MB/s';
+    }
+    if (bytesPerSecond >= kb) {
+      return '${(bytesPerSecond / kb).toStringAsFixed(1)} KB/s';
+    }
+    return '$bytesPerSecond B/s';
+  }
+}
