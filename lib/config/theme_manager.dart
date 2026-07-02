@@ -101,14 +101,6 @@ class ThemeManager {
           borderSide: BorderSide(color: palette.primary, width: 1.4),
         ),
       ),
-      bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: palette.card,
-        selectedItemColor: palette.primary,
-        unselectedItemColor: palette.textSecondary,
-        showUnselectedLabels: true,
-        type: BottomNavigationBarType.fixed,
-        elevation: 0,
-      ),
       textTheme: TextTheme(
         bodyLarge: TextStyle(color: palette.textPrimary),
         bodyMedium: TextStyle(color: palette.textSecondary),

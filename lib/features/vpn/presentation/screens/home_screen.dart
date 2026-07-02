@@ -189,8 +189,6 @@ class _AppBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       child: Row(
         children: [
-          Icon(Icons.menu_rounded, color: palette.textPrimary, size: 26),
-          const Spacer(),
           Text.rich(
             TextSpan(
               children: [
@@ -215,10 +213,19 @@ class _AppBar extends StatelessWidget {
           ),
           const Spacer(),
           GestureDetector(
-            onTap: () => Navigator.pushNamed(context, Routes.premium),
+            onTap: () => Navigator.pushNamed(context, Routes.location),
             child: Icon(
-              Icons.workspace_premium_rounded,
-              color: palette.accent,
+              Icons.language,
+              color: palette.textPrimary,
+              size: 26,
+            ),
+          ),
+          const SizedBox(width: 18),
+          GestureDetector(
+            onTap: () => Navigator.pushNamed(context, Routes.profile),
+            child: Icon(
+              Icons.person_rounded,
+              color: palette.textPrimary,
               size: 26,
             ),
           ),

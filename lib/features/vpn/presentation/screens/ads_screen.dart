@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../config/routes_manager.dart';
 import '../../../../../core/utils/app_colors.dart';
 
 class AdsScreen extends StatelessWidget {
@@ -73,32 +72,6 @@ class AdsScreen extends StatelessWidget {
                     onTap: () => _watch(context, o),
                   ),
                 )),
-            const SizedBox(height: 8),
-            Center(
-              child: Text(
-                'OR',
-                style: TextStyle(
-                  color: palette.textSecondary,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => Navigator.pushNamed(context, Routes.premium),
-                icon: Icon(Icons.workspace_premium_rounded,
-                    color: Colors.white, size: 18),
-                label: const Text('Remove Ads'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
       ),

@@ -50,8 +50,6 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ),
               ),
-            _PremiumBanner(palette: palette),
-            const SizedBox(height: 20),
             _ThemeTile(palette: palette),
             const SizedBox(height: 8),
             _Tile(
@@ -84,57 +82,6 @@ class ProfileScreen extends StatelessWidget {
               palette: palette,
               onTap: () {},
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PremiumBanner extends StatelessWidget {
-  final AppPalette palette;
-  const _PremiumBanner({required this.palette});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, Routes.premium),
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [palette.primary, palette.primaryDark],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.workspace_premium_rounded,
-                color: Colors.white, size: 36),
-            const SizedBox(width: 14),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Go Premium',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    'Unlock all servers and remove ads',
-                    style: TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right_rounded, color: Colors.white),
           ],
         ),
       ),
