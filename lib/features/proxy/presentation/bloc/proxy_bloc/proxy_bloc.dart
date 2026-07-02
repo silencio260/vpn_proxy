@@ -42,19 +42,27 @@ class ProxyBloc extends Bloc<ProxyEvent, ProxyState> {
     LoadCachedProxiesEvent event,
     Emitter<ProxyState> emit,
   ) async {
+    if (state is ProxyLoaded || state is ProxyLoading) return;
+    emit(const ProxyLoading());
     final result = await getCachedProxies(NoParams.instance);
-    result.fold((failure) {
-      // Cached read failing is not fatal — a subsequent FetchProxiesEvent
-      // will still attempt a network fetch.
-    }, (proxies) {
-      if (proxies.isEmpty) return;
-      emit(
-        ProxyLoaded(
-          proxies: proxies,
-          selectedProxy: proxies.first,
-        ),
-      );
-    });
+    result.fold(
+      // Cached read failing or coming back empty is not fatal — revert to
+      // the initial state so a subsequent FetchProxiesEvent can still
+      // attempt a network fetch.
+      (failure) => emit(const ProxyInitial()),
+      (proxies) {
+        if (proxies.isEmpty) {
+          emit(const ProxyInitial());
+          return;
+        }
+        emit(
+          ProxyLoaded(
+            proxies: proxies,
+            selectedProxy: proxies.first,
+          ),
+        );
+      },
+    );
   }
 
   void _onSelect(SelectProxyEvent event, Emitter<ProxyState> emit) {

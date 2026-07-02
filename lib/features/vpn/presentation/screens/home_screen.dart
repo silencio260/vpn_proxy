@@ -25,6 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _ticker;
   Duration _elapsed = Duration.zero;
   VpnStage? _lastStage;
+  bool _autoConnecting = false;
 
   @override
   void initState() {
@@ -142,7 +143,38 @@ class _HomeScreenState extends State<HomeScreen> {
     if (selected != null && !selected.isEmpty) {
       bloc.add(ConnectProxyEvent(selected));
     } else {
-      Navigator.pushNamed(context, Routes.location);
+      _autoSelectAndConnect(context);
+    }
+  }
+
+  Future<void> _autoSelectAndConnect(BuildContext context) async {
+    if (_autoConnecting) return;
+    _autoConnecting = true;
+    final proxyBloc = context.read<ProxyBloc>();
+    final connectionBloc = context.read<ProxyConnectionBloc>();
+    try {
+      if (proxyBloc.state is! ProxyLoading) {
+        proxyBloc.add(const FetchProxiesEvent());
+      }
+      var result = await proxyBloc.stream
+          .firstWhere((s) => s is! ProxyLoading)
+          .timeout(const Duration(seconds: 20));
+      if (result is ProxyInitial) {
+        // A cached-db load was in flight and came back empty — fall
+        // through to a network fetch.
+        proxyBloc.add(const FetchProxiesEvent());
+        result = await proxyBloc.stream
+            .firstWhere((s) => s is ProxyLoaded || s is ProxyError)
+            .timeout(const Duration(seconds: 20));
+      }
+      if (!mounted) return;
+      if (result is ProxyLoaded && !result.selectedProxy.isEmpty) {
+        connectionBloc.add(ConnectProxyEvent(result.selectedProxy));
+      }
+    } on TimeoutException {
+      // The card's spinner is driven by ProxyBloc state; nothing else to do.
+    } finally {
+      _autoConnecting = false;
     }
   }
 }
@@ -298,6 +330,7 @@ class _SelectedServerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<ProxyBloc, ProxyState>(
       builder: (context, state) {
+        final isLoading = state is ProxyLoading;
         final proxy = state is ProxyLoaded ? state.selectedProxy : null;
         final hasProxy = proxy != null && !proxy.isEmpty;
         final code = proxy?.deep?.egressCountry;
@@ -307,7 +340,9 @@ class _SelectedServerCard extends StatelessWidget {
                 ? (country.isNotEmpty
                     ? country
                     : (proxy.remark.isEmpty ? proxy.address : proxy.remark))
-                : 'Tap to select a server';
+                : isLoading
+                    ? 'Loading servers…'
+                    : 'Tap to select a server';
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -343,10 +378,19 @@ class _SelectedServerCard extends StatelessWidget {
                         shape: BoxShape.circle,
                         color: palette.surface,
                       ),
-                      child: Text(
-                        CountryUtil.flagEmoji(hasProxy ? code : null),
-                        style: const TextStyle(fontSize: 22),
-                      ),
+                      child: isLoading
+                          ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: palette.primary,
+                              ),
+                            )
+                          : Text(
+                              CountryUtil.flagEmoji(hasProxy ? code : null),
+                              style: const TextStyle(fontSize: 22),
+                            ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(

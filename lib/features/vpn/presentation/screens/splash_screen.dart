@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../config/routes_manager.dart';
 import '../../../../core/utils/app_colors.dart';
+import '../../../proxy/presentation/bloc/proxy_bloc/proxy_bloc.dart';
 import '../bloc/vpn_servers_bloc/vpn_servers_bloc.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -45,6 +46,16 @@ class _SplashScreenState extends State<SplashScreen>
     bloc.stream.firstWhere((s) => s is! VpnServersLoading).then((s) {
       if (s is VpnServersLoaded && s.servers.isEmpty) {
         bloc.add(const FetchVpnServersEvent());
+      }
+    });
+
+    final proxyBloc = context.read<ProxyBloc>();
+    proxyBloc.add(const LoadCachedProxiesEvent());
+    // Same pattern for proxies: fall back to a network fetch when the db
+    // cache is empty (the bloc reverts to ProxyInitial in that case).
+    proxyBloc.stream.firstWhere((s) => s is! ProxyLoading).then((s) {
+      if (s is! ProxyLoaded) {
+        proxyBloc.add(const FetchProxiesEvent());
       }
     });
 
