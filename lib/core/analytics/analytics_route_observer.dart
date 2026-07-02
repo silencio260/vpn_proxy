@@ -12,7 +12,10 @@ class AnalyticsRouteObserver extends RouteObserver<PageRoute<dynamic>> {
     if (route is! PageRoute) return;
     final name = route.settings.name;
     if (name == null || name.isEmpty) return;
-    AppAnalyticsService.instance.logScreenView(name);
+    AppAnalyticsService.instance.logScreenView(
+      name,
+      debugLog: AppAnalyticsService.debugLogging,
+    );
   }
 
   @override

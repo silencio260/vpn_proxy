@@ -1,5 +1,6 @@
 import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:starter_kit/starter_kit.dart';
 
 import '../../features/proxy/domain/entities/proxy_entity.dart';
@@ -23,62 +24,62 @@ class AppAnalyticsService extends AnalyticsService {
   static final AppAnalyticsService instance =
       AppAnalyticsService(StarterKit.analyticsBloc);
 
+  /// When true, every app event is also printed to the console (via the kit's
+  /// `StarterLog`, tag `[ANALYTICS]`) as it is dispatched — visible in
+  /// `flutter logs` / logcat. Defaults to debug builds only; flip on in release
+  /// temporarily if you need to confirm wiring on a production build.
+  static bool debugLogging = kDebugMode;
+
   // --- Connection lifecycle ---
 
-  void logProxyConnectTapped(ProxyEntity proxy) => logEvent(
-    AppAnalyticsEvents.proxyConnectTapped,
-    parameters: _proxyParams(proxy),
-  );
+  void logProxyConnectTapped(ProxyEntity proxy) =>
+      _log(AppAnalyticsEvents.proxyConnectTapped, _proxyParams(proxy));
 
-  void logProxyConnected(ProxyEntity proxy) => logEvent(
-    AppAnalyticsEvents.proxyConnected,
-    parameters: _proxyParams(proxy),
-  );
+  void logProxyConnected(ProxyEntity proxy) =>
+      _log(AppAnalyticsEvents.proxyConnected, _proxyParams(proxy));
 
-  void logProxyConnectFailed(ProxyEntity proxy, {String? reason}) => logEvent(
-    AppAnalyticsEvents.proxyConnectFailed,
-    parameters: {
-      ..._proxyParams(proxy),
-      if (reason != null && reason.isNotEmpty) 'reason': reason,
-    },
-  );
+  void logProxyConnectFailed(ProxyEntity proxy, {String? reason}) =>
+      _log(AppAnalyticsEvents.proxyConnectFailed, {
+        ..._proxyParams(proxy),
+        if (reason != null && reason.isNotEmpty) 'reason': reason,
+      });
 
-  void logProxyDisconnected({String source = 'user'}) => logEvent(
+  void logProxyDisconnected({String source = 'user'}) => _log(
     AppAnalyticsEvents.proxyDisconnected,
-    parameters: {'source': source, ..._platform()},
+    {'source': source, ..._platform()},
   );
 
   // --- Selection ---
 
-  void logProxySelected(ProxyEntity proxy, {bool auto = false}) => logEvent(
+  void logProxySelected(ProxyEntity proxy, {bool auto = false}) => _log(
     auto
         ? AppAnalyticsEvents.serverAutoSelected
         : AppAnalyticsEvents.proxySelected,
-    parameters: _proxyParams(proxy),
+    _proxyParams(proxy),
   );
 
   // --- Speed test ---
 
-  void logSpeedTestStarted() => logEvent(
-    AppAnalyticsEvents.speedTestStarted,
-    parameters: _platform(),
-  );
+  void logSpeedTestStarted() =>
+      _log(AppAnalyticsEvents.speedTestStarted, _platform());
 
   void logSpeedTestCompleted({
     double? downloadMbps,
     double? uploadMbps,
     int? pingMs,
-  }) => logEvent(
-    AppAnalyticsEvents.speedTestCompleted,
-    parameters: {
-      if (downloadMbps != null) 'download_mbps': downloadMbps,
-      if (uploadMbps != null) 'upload_mbps': uploadMbps,
-      if (pingMs != null) 'ping_ms': pingMs,
-      ..._platform(),
-    },
-  );
+  }) => _log(AppAnalyticsEvents.speedTestCompleted, {
+    if (downloadMbps != null) 'download_mbps': downloadMbps,
+    if (uploadMbps != null) 'upload_mbps': uploadMbps,
+    if (pingMs != null) 'ping_ms': pingMs,
+    ..._platform(),
+  });
 
   // --- Internal enrichment ---
+
+  /// Single dispatch point so `debugLogging` is applied uniformly to every
+  /// app event.
+  void _log(String name, Map<String, dynamic> params) =>
+      logEvent(name, parameters: params, debugLog: debugLogging);
 
   /// PII-safe subset of a proxy. Deliberately omits the raw share link and the
   /// server IP/host; keeps protocol/transport/label and a coarse health flag.

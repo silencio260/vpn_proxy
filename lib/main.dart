@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui' show PlatformDispatcher;
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -65,8 +66,9 @@ Future<void> main() async {
 
       // Log the launch. Fire-and-forget — logging must never block startup.
       // (Firebase itself is initialised above; the kit's analytics repository
-      // needs no separate init call.)
-      StarterKit.analytics.logAppOpen();
+      // needs no separate init call.) debugLog mirrors the event to the console
+      // so it's visible in `flutter logs` / logcat under [ANALYTICS].
+      StarterKit.analytics.logAppOpen(debugLog: kDebugMode);
 
       runApp(const MyApp());
     },
