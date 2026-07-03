@@ -1,7 +1,7 @@
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show kDebugMode;
-import 'package:starter_kit/starter_kit.dart';
+import 'package:genrevibes_starter_kit/starter_kit.dart';
 
 import '../../features/proxy/domain/entities/proxy_entity.dart';
 import 'app_analytics_events.dart';

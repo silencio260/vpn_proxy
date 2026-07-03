@@ -55,7 +55,7 @@ dependencies:
   # GenRevibes internal plugin (Analytics, Ads, IAP, Onboarding, Settings,
   # Remote Config, etc.). Manages Firebase Analytics/Crashlytics/Remote Config
   # wiring — requires Firebase.initializeApp() in the host app first.
-  starter_kit:
+  genrevibes_starter_kit:
     path: packages/genrevibes_starter_kit
 
   # Firebase — declared as DIRECT deps and version-aligned to the starter kit
