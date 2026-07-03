@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:ui' show PlatformDispatcher;
 
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:starter_kit/starter_kit.dart';
 
 import 'bloc_observer.dart';
@@ -30,7 +30,23 @@ Future<void> main() async {
         options: DefaultFirebaseOptions.currentPlatform,
       );
 
-      await StarterKit.initialize(supportEmail: _supportEmail);
+      // Stable, non-PII per-install id so retention and segmentation events
+      // are attributable to a consistent user across Firebase, Crashlytics and
+      // (once a Mixpanel token is configured) Mixpanel/PostHog. Firebase's app
+      // instance id is already persisted per install, so we reuse it rather
+      // than minting our own. It is null only when analytics collection is
+      // unavailable, in which case StarterKit.initialize skips setUserId.
+      final installId = await FirebaseAnalytics.instance.appInstanceId;
+
+      // StarterKit.initialize drives the full retention pipeline on launch
+      // (logs app_open, RetentionTracker.trackAppOpen with all D0–D30 and
+      // first-five open/session milestones, and UserTargetingManager segment
+      // logging + the resume-driven session observer). Do NOT log app_open
+      // separately below — that would double-count opens.
+      await StarterKit.initialize(
+        supportEmail: _supportEmail,
+        analyticsUserId: installId,
+      );
 
       // Route framework errors to Crashlytics (and DebugView while developing).
       FlutterError.onError = (details) {
@@ -64,11 +80,9 @@ Future<void> main() async {
       Bloc.observer = AppBlocObserver();
       await initAppDependencies();
 
-      // Log the launch. Fire-and-forget — logging must never block startup.
-      // (Firebase itself is initialised above; the kit's analytics repository
-      // needs no separate init call.) debugLog mirrors the event to the console
-      // so it's visible in `flutter logs` / logcat under [ANALYTICS].
-      StarterKit.analytics.logAppOpen(debugLog: kDebugMode);
+      // Note: app_open and the retention/session/segment events are already
+      // logged by StarterKit.initialize above. No explicit logAppOpen call
+      // here — doing so would emit a duplicate app_open per launch.
 
       runApp(const MyApp());
     },
