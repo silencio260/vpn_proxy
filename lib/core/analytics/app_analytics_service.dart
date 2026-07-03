@@ -32,15 +32,15 @@ class AppAnalyticsService extends AnalyticsService {
 
   // --- Connection lifecycle ---
 
-  void logProxyConnectTapped(ProxyEntity proxy) =>
-      _log(AppAnalyticsEvents.proxyConnectTapped, _proxyParams(proxy));
+  void logProxyConnectTapped(ProxyEntity proxy, {String? mode}) =>
+      _log(AppAnalyticsEvents.proxyConnectTapped, _proxyParams(proxy, mode));
 
-  void logProxyConnected(ProxyEntity proxy) =>
-      _log(AppAnalyticsEvents.proxyConnected, _proxyParams(proxy));
+  void logProxyConnected(ProxyEntity proxy, {String? mode}) =>
+      _log(AppAnalyticsEvents.proxyConnected, _proxyParams(proxy, mode));
 
-  void logProxyConnectFailed(ProxyEntity proxy, {String? reason}) =>
+  void logProxyConnectFailed(ProxyEntity proxy, {String? reason, String? mode}) =>
       _log(AppAnalyticsEvents.proxyConnectFailed, {
-        ..._proxyParams(proxy),
+        ..._proxyParams(proxy, mode),
         if (reason != null && reason.isNotEmpty) 'reason': reason,
       });
 
@@ -56,6 +56,18 @@ class AppAnalyticsService extends AnalyticsService {
         ? AppAnalyticsEvents.serverAutoSelected
         : AppAnalyticsEvents.proxySelected,
     _proxyParams(proxy),
+  );
+
+  // --- Connection settings ---
+
+  void logConnectionModeChanged(String mode) => _log(
+    AppAnalyticsEvents.connectionModeChanged,
+    {'mode': mode, ..._platform()},
+  );
+
+  void logSplitTunnelUpdated({required int excludedCount}) => _log(
+    AppAnalyticsEvents.splitTunnelUpdated,
+    {'excluded_count': excludedCount, ..._platform()},
   );
 
   // --- Speed test ---
@@ -83,10 +95,11 @@ class AppAnalyticsService extends AnalyticsService {
 
   /// PII-safe subset of a proxy. Deliberately omits the raw share link and the
   /// server IP/host; keeps protocol/transport/label and a coarse health flag.
-  Map<String, dynamic> _proxyParams(ProxyEntity proxy) => {
+  Map<String, dynamic> _proxyParams(ProxyEntity proxy, [String? mode]) => {
     'protocol': proxy.type,
     'network': proxy.network,
     'tls': proxy.tls,
+    if (mode != null) 'mode': mode,
     if (proxy.remark.isNotEmpty) 'server_label': proxy.remark,
     'has_health': proxy.health != null,
     ..._platform(),

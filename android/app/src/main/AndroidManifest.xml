@@ -48,5 +48,13 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Split tunneling: make launchable apps visible (package visibility,
+             Android 11+) so the excluded-apps picker can list them. This avoids
+             the sensitive QUERY_ALL_PACKAGES permission and its Play Console
+             declaration form — it only reveals apps with a launcher icon. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN"/>
+            <category android:name="android.intent.category.LAUNCHER"/>
+        </intent>
     </queries>
 </manifest>

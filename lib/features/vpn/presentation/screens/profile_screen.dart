@@ -1,9 +1,15 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../config/routes_manager.dart';
 import '../../../../../config/theme_cubit.dart';
 import '../../../../../core/utils/app_colors.dart';
+import '../../../proxy/presentation/bloc/proxy_connection_bloc/proxy_connection_bloc.dart';
+import '../../../settings/domain/entities/connection_settings_entity.dart';
+import '../../../settings/presentation/cubit/connection_settings_cubit.dart';
+import '../bloc/vpn_connection_bloc/vpn_connection_bloc.dart';
 
 class ProfileScreen extends StatelessWidget {
   final bool embedded;
@@ -51,6 +57,15 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
             _ThemeTile(palette: palette),
+            _VpnModeTile(palette: palette),
+            if (Platform.isAndroid)
+              _Tile(
+                icon: Icons.call_split_rounded,
+                label: 'Split Tunneling',
+                palette: palette,
+                onTap: () =>
+                    Navigator.pushNamed(context, Routes.splitTunneling),
+              ),
             const SizedBox(height: 8),
             _Tile(
               icon: Icons.speed_rounded,
@@ -64,12 +79,12 @@ class ProfileScreen extends StatelessWidget {
               palette: palette,
               onTap: () => Navigator.pushNamed(context, Routes.location),
             ),
-            _Tile(
-              icon: Icons.language_rounded,
-              label: 'Language',
-              palette: palette,
-              onTap: () {},
-            ),
+            // _Tile(
+            //   icon: Icons.language_rounded,
+            //   label: 'Language',
+            //   palette: palette,
+            //   onTap: () {},
+            // ),
             _Tile(
               icon: Icons.shield_rounded,
               label: 'Privacy Policy',
@@ -128,6 +143,82 @@ class _ThemeTile extends StatelessWidget {
                 value: isDark,
                 activeThumbColor: palette.primary,
                 onChanged: (_) => context.read<ThemeCubit>().toggle(),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Mutually exclusive connection-mode switch: OFF = stealth/proxy mode
+/// (default — traffic disguised as ordinary HTTPS), ON = VPN mode. Flipping it
+/// while a session is active restarts the connection with the new mode.
+class _VpnModeTile extends StatelessWidget {
+  final AppPalette palette;
+  const _VpnModeTile({required this.palette});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<ConnectionSettingsCubit, ConnectionSettingsEntity>(
+      builder: (context, settings) {
+        final isVpn = settings.mode == ConnectionMode.vpn;
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: palette.card,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: palette.border),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isVpn ? Icons.vpn_lock_rounded : Icons.visibility_off_rounded,
+                color: palette.primary,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'VPN Mode',
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isVpn
+                          ? 'Standard encrypted tunnel'
+                          : 'Stealth mode: traffic disguised as normal HTTPS',
+                      style: TextStyle(
+                        color: palette.textSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: isVpn,
+                activeThumbColor: palette.primary,
+                onChanged: (enabled) {
+                  context
+                      .read<ConnectionSettingsCubit>()
+                      .toggleVpnMode(enabled);
+                  // Auto-reconnect so the mode change takes effect right away.
+                  final connectionBloc = context.read<ProxyConnectionBloc>();
+                  final stage = connectionBloc.state.stage;
+                  if (stage == VpnStage.connected ||
+                      stage == VpnStage.connecting) {
+                    connectionBloc.add(const ReconnectWithSettingsEvent());
+                  }
+                },
               ),
             ],
           ),

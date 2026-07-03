@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/analytics/app_analytics_service.dart';
 import '../../../../vpn/domain/entities/vpn_status_entity.dart';
+import '../../../../settings/presentation/cubit/connection_settings_cubit.dart';
 import '../../../../vpn/presentation/bloc/vpn_connection_bloc/vpn_connection_bloc.dart';
 import '../../../domain/entities/proxy_entity.dart';
 import '../../../services/proxy_engine_service.dart';
@@ -20,6 +21,10 @@ part 'proxy_connection_event.dart';
 class ProxyConnectionBloc extends Bloc<ProxyConnectionEvent, VpnConnectionState> {
   final ProxyEngineService engine;
 
+  /// Live connection settings (mode + split-tunnel exclusions); read at
+  /// connect time so every session starts with the latest values.
+  final ConnectionSettingsCubit settings;
+
   StreamSubscription<String>? _stageSub;
   StreamSubscription<dynamic>? _statusSub;
   Timer? _connectTimeout;
@@ -32,10 +37,11 @@ class ProxyConnectionBloc extends Bloc<ProxyConnectionEvent, VpnConnectionState>
   static const _connectTimeoutDuration = Duration(seconds: 25);
   static const _restartSuppressWindow = Duration(seconds: 3);
 
-  ProxyConnectionBloc({required this.engine})
+  ProxyConnectionBloc({required this.engine, required this.settings})
       : super(const VpnConnectionState()) {
     on<ConnectProxyEvent>(_onConnect);
     on<DisconnectProxyEvent>(_onDisconnect);
+    on<ReconnectWithSettingsEvent>(_onReconnectWithSettings);
     on<ProxyStageChangedEvent>(_onStageChanged);
     on<ProxyStatusUpdatedEvent>(_onStatusUpdated);
 
@@ -52,7 +58,10 @@ class ProxyConnectionBloc extends Bloc<ProxyConnectionEvent, VpnConnectionState>
     Emitter<VpnConnectionState> emit,
   ) async {
     _lastProxy = event.proxy;
-    AppAnalyticsService.instance.logProxyConnectTapped(event.proxy);
+    AppAnalyticsService.instance.logProxyConnectTapped(
+      event.proxy,
+      mode: settings.state.mode.name,
+    );
     // If already connecting/connected (e.g. user switching proxies), stop the
     // current session first so the engine can cleanly start the new one.
     if (state.stage == VpnStage.connecting ||
@@ -67,7 +76,10 @@ class ProxyConnectionBloc extends Bloc<ProxyConnectionEvent, VpnConnectionState>
     emit(state.copyWith(stage: VpnStage.connecting));
     _armConnectTimeout();
     try {
-      await engine.startProxy(event.proxy);
+      await engine.startProxy(
+        event.proxy,
+        blockedApps: settings.state.excludedApps.toList(),
+      );
     } catch (e) {
       _connectTimeout?.cancel();
       emit(state.copyWith(
@@ -100,6 +112,23 @@ class ProxyConnectionBloc extends Bloc<ProxyConnectionEvent, VpnConnectionState>
         errorMessage: e.toString(),
       ));
     }
+  }
+
+  /// Settings changed while a session is up — restart it so the new mode /
+  /// exclusion list is applied. `_onConnect` already stops the active session
+  /// (with exit-event suppression) before starting, so re-dispatching the last
+  /// proxy is all that's needed.
+  void _onReconnectWithSettings(
+    ReconnectWithSettingsEvent event,
+    Emitter<VpnConnectionState> emit,
+  ) {
+    final proxy = _lastProxy;
+    if (proxy == null || proxy.isEmpty) return;
+    if (state.stage != VpnStage.connected &&
+        state.stage != VpnStage.connecting) {
+      return;
+    }
+    add(ConnectProxyEvent(proxy));
   }
 
   void _onStageChanged(
@@ -144,11 +173,15 @@ class ProxyConnectionBloc extends Bloc<ProxyConnectionEvent, VpnConnectionState>
     final proxy = _lastProxy;
     if (proxy != null) {
       if (stage == VpnStage.connected) {
-        AppAnalyticsService.instance.logProxyConnected(proxy);
+        AppAnalyticsService.instance.logProxyConnected(
+          proxy,
+          mode: settings.state.mode.name,
+        );
       } else if (stage == VpnStage.error) {
         AppAnalyticsService.instance.logProxyConnectFailed(
           proxy,
           reason: errorMessage,
+          mode: settings.state.mode.name,
         );
       }
     }

@@ -6,8 +6,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../config/routes_manager.dart';
 import '../../../../../core/utils/app_colors.dart';
 import '../../../../../core/utils/country_util.dart';
+import '../../../proxy/domain/entities/proxy_entity.dart';
 import '../../../proxy/presentation/bloc/proxy_bloc/proxy_bloc.dart';
 import '../../../proxy/presentation/bloc/proxy_connection_bloc/proxy_connection_bloc.dart';
+import '../../../settings/domain/entities/connection_settings_entity.dart';
+import '../../../settings/presentation/cubit/connection_settings_cubit.dart';
 // VpnConnectionBloc is imported for the shared VpnConnectionState/VpnStage
 // types (declared in its library); the connect flow is driven by
 // ProxyConnectionBloc.
@@ -152,6 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _autoConnecting = true;
     final proxyBloc = context.read<ProxyBloc>();
     final connectionBloc = context.read<ProxyConnectionBloc>();
+    final settingsCubit = context.read<ConnectionSettingsCubit>();
     try {
       if (proxyBloc.state is! ProxyLoading) {
         proxyBloc.add(const FetchProxiesEvent());
@@ -169,13 +173,31 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       if (!mounted) return;
       if (result is ProxyLoaded && !result.selectedProxy.isEmpty) {
-        connectionBloc.add(ConnectProxyEvent(result.selectedProxy));
+        final candidate = _preferredProxy(result, settingsCubit.state.mode);
+        if (candidate.id != result.selectedProxy.id) {
+          proxyBloc.add(SelectProxyEvent(candidate));
+        }
+        connectionBloc.add(ConnectProxyEvent(candidate));
       }
     } on TimeoutException {
       // The card's spinner is driven by ProxyBloc state; nothing else to do.
     } finally {
       _autoConnecting = false;
     }
+  }
+
+  /// In stealth mode the auto-picked server should be TLS-camouflaged so
+  /// tunnel traffic is indistinguishable from ordinary HTTPS; fall back to the
+  /// default selection when no TLS server is available. VPN mode (and explicit
+  /// user selections, which never reach this path) are unrestricted.
+  ProxyEntity _preferredProxy(ProxyLoaded loaded, ConnectionMode mode) {
+    if (mode != ConnectionMode.stealth || loaded.selectedProxy.tls) {
+      return loaded.selectedProxy;
+    }
+    return loaded.proxies.firstWhere(
+      (p) => p.tls && !p.isEmpty,
+      orElse: () => loaded.selectedProxy,
+    );
   }
 }
 

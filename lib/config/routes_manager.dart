@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../features/proxy/presentation/screens/proxy_list_screen.dart';
+import '../features/settings/presentation/screens/split_tunneling_screen.dart';
 import '../features/vpn/presentation/screens/ads_screen.dart';
 // Routes.location points to the Firestore-backed proxy list
 // (ProxyListScreen). The legacy vpngate list (LocationScreen) is no longer
@@ -20,6 +21,7 @@ class Routes {
   static const String speedTest = '/speed-test';
   static const String ads = '/ads';
   static const String profile = '/profile';
+  static const String splitTunneling = '/split-tunneling';
 }
 
 class AppRouter {
@@ -40,6 +42,8 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const AdsScreen());
       case Routes.profile:
         return MaterialPageRoute(builder: (_) => const ProfileScreen());
+      case Routes.splitTunneling:
+        return MaterialPageRoute(builder: (_) => const SplitTunnelingScreen());
       default:
         return MaterialPageRoute(builder: (_) => const SplashScreen());
     }

@@ -43,7 +43,12 @@ class ProxyEngineService {
   Future<void> _ensureInitialized() =>
       _initFuture ??= _engine.initializeV2Ray();
 
-  Future<void> startProxy(ProxyEntity proxy) async {
+  /// [blockedApps] — Android package names excluded from the tunnel (split
+  /// tunneling); their traffic bypasses the proxy and uses the normal network.
+  Future<void> startProxy(
+    ProxyEntity proxy, {
+    List<String> blockedApps = const [],
+  }) async {
     await _ensureInitialized();
 
     // The `raw` field is a standard share link (ss://, vless://, vmess://,
@@ -62,6 +67,9 @@ class ProxyEngineService {
     await _engine.startV2Ray(
       remark: remark,
       config: parsed.getFullConfiguration(),
+      blockedApps: blockedApps.isEmpty ? null : blockedApps,
+      // Always run the full VpnService tunnel — stealth vs vpn mode is a
+      // server-selection concern (TLS camouflage), never proxyOnly.
       proxyOnly: false,
     );
   }

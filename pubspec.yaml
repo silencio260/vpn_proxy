@@ -45,6 +45,10 @@ dependencies:
   # (features/vpn/services/vpn_engine_service.dart).
   flutter_v2ray: ^1.0.4
 
+  # Installed-app listing (Android) for the split-tunneling excluded-apps
+  # picker. Requires QUERY_ALL_PACKAGES in the manifest on Android 11+.
+  installed_apps: ^1.6.0
+
   # UI
   lottie: ^3.3.1
 

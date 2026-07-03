@@ -18,6 +18,10 @@ abstract class AppAnalyticsEvents {
   static const String proxySelected = 'proxy_selected';
   static const String serverAutoSelected = 'server_auto_selected';
 
+  // --- Connection settings ---
+  static const String connectionModeChanged = 'connection_mode_changed';
+  static const String splitTunnelUpdated = 'split_tunnel_updated';
+
   // --- Tools ---
   static const String speedTestStarted = 'speed_test_started';
   static const String speedTestCompleted = 'speed_test_completed';
