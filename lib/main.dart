@@ -9,6 +9,7 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:starter_kit/starter_kit.dart';
 
 import 'bloc_observer.dart';
+import 'config/app_env.dart';
 import 'container_injector.dart';
 import 'firebase_options.dart';
 import 'my_app.dart';
@@ -32,10 +33,10 @@ Future<void> main() async {
 
       // Stable, non-PII per-install id so retention and segmentation events
       // are attributable to a consistent user across Firebase, Crashlytics and
-      // (once a Mixpanel token is configured) Mixpanel/PostHog. Firebase's app
-      // instance id is already persisted per install, so we reuse it rather
-      // than minting our own. It is null only when analytics collection is
-      // unavailable, in which case StarterKit.initialize skips setUserId.
+      // Mixpanel. Firebase's app instance id is already persisted per install,
+      // so we reuse it rather than minting our own. It is null only when
+      // analytics collection is unavailable, in which case StarterKit.initialize
+      // skips setUserId.
       final installId = await FirebaseAnalytics.instance.appInstanceId;
 
       // StarterKit.initialize drives the full retention pipeline on launch
@@ -43,9 +44,18 @@ Future<void> main() async {
       // first-five open/session milestones, and UserTargetingManager segment
       // logging + the resume-driven session observer). Do NOT log app_open
       // separately below — that would double-count opens.
+      //
+      // Mixpanel is initialized here from the env-provided token before any
+      // startup events fire, so retention/segment events reach Mixpanel too.
+      // With an empty token the kit's Mixpanel SDK stays a safe no-op and
+      // events go to Firebase only. mixpanelDistinctId reuses the Firebase
+      // install id so a user maps to the same id across providers.
       await StarterKit.initialize(
         supportEmail: _supportEmail,
         analyticsUserId: installId,
+        mixpanelToken: AppEnv.mixpanelTokenOrNull,
+        mixpanelDistinctId: installId,
+        feedbackNestApiKey: AppEnv.feedbackNestApiKeyOrNull,
       );
 
       // Route framework errors to Crashlytics (and DebugView while developing).
@@ -84,7 +94,19 @@ Future<void> main() async {
       // logged by StarterKit.initialize above. No explicit logAppOpen call
       // here — doing so would emit a duplicate app_open per launch.
 
-      runApp(const MyApp());
+      // Mount the Mixpanel session-replay capture surface at the app root.
+      // mixpanelWrapper mounts MixpanelSessionReplayWidget, which actually
+      // records the UI for Mixpanel Session Replay (masking all text + images
+      // by default). Mixpanel events were already initialized in
+      // StarterKit.initialize above, so the wrapper's re-init is a no-op — its
+      // purpose here is the replay capture surface. No-op with no token.
+      runApp(
+        StarterKit.mixpanelWrapper(
+          token: AppEnv.mixpanelToken,
+          distinctId: installId ?? '',
+          child: const MyApp(),
+        ),
+      );
     },
     (error, stack) {
       StarterKit.analytics.recordError(error, stack, fatal: true);
