@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_v2ray/flutter_v2ray.dart';
 
+import '../../../core/constants/app_packages.dart';
 import '../../vpn/data/models/vpn_status_model.dart';
 import '../domain/entities/proxy_entity.dart';
 
@@ -45,11 +46,21 @@ class ProxyEngineService {
 
   /// [blockedApps] — Android package names excluded from the tunnel (split
   /// tunneling); their traffic bypasses the proxy and uses the normal network.
+  ///
+  /// This app's own package ([kOwnPackageName]) is always added to that set so
+  /// the app's own traffic — ad requests, Firebase/Firestore, analytics —
+  /// egresses on the real network instead of the user's exit node. It is forced
+  /// (never user-configurable) and is also hidden from the split-tunnel picker,
+  /// so users cannot route it back through the tunnel.
   Future<void> startProxy(
     ProxyEntity proxy, {
     List<String> blockedApps = const [],
   }) async {
     await _ensureInitialized();
+
+    // Always exclude ourselves, de-duplicated. Never empty, so it is always
+    // passed through to the VpnService's disallowedApplications.
+    final effectiveBlockedApps = <String>{...blockedApps, kOwnPackageName};
 
     // The `raw` field is a standard share link (ss://, vless://, vmess://,
     // trojan://). parseFromURL throws on anything it can't understand — let it
@@ -67,7 +78,7 @@ class ProxyEngineService {
     await _engine.startV2Ray(
       remark: remark,
       config: parsed.getFullConfiguration(),
-      blockedApps: blockedApps.isEmpty ? null : blockedApps,
+      blockedApps: effectiveBlockedApps.toList(),
       // Always run the full VpnService tunnel — stealth vs vpn mode is a
       // server-selection concern (TLS camouflage), never proxyOnly.
       proxyOnly: false,

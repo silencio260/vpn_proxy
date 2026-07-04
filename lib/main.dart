@@ -11,6 +11,7 @@ import 'package:genrevibes_starter_kit/starter_kit.dart';
 import 'bloc_observer.dart';
 import 'config/app_env.dart';
 import 'container_injector.dart';
+import 'core/ads/app_open_ad_manager.dart';
 import 'firebase_options.dart';
 import 'my_app.dart';
 
@@ -90,6 +91,26 @@ Future<void> main() async {
       Bloc.observer = AppBlocObserver();
       await initAppDependencies();
 
+      // Initialize AdMob and preload ads. AdsInitialize sets up the SDK and
+      // auto-preloads interstitial + app-open (and reloads them after each
+      // show). Ad unit ids come from the env config; when a build has none
+      // configured they are null and that ad type simply never loads. Ads are
+      // suppressed automatically for premium users via AdSuppressionManager.
+      // Interstitial/app-open frequency is capped so users aren't spammed.
+      StarterKit.adsBloc.add(
+        AdsInitialize(
+          config: AdsConfig(
+            bannerAdUnitId: AppEnv.bannerAdIdOrNull,
+            interstitialAdUnitId: AppEnv.interstitialAdIdOrNull,
+            rewardedAdUnitId: AppEnv.rewardedAdIdOrNull,
+            nativeAdUnitId: AppEnv.nativeAdIdOrNull,
+            appOpenAdUnitId: AppEnv.appOpenAdIdOrNull,
+            minInterstitialInterval: 60,
+            minAppOpenInterval: 60,
+          ),
+        ),
+      );
+
       // Note: app_open and the retention/session/segment events are already
       // logged by StarterKit.initialize above. No explicit logAppOpen call
       // here — doing so would emit a duplicate app_open per launch.
@@ -100,11 +121,14 @@ Future<void> main() async {
       // by default). Mixpanel events were already initialized in
       // StarterKit.initialize above, so the wrapper's re-init is a no-op — its
       // purpose here is the replay capture surface. No-op with no token.
+      //
+      // AppOpenAdManager shows the preloaded App Open ad when the app returns
+      // to the foreground (skips the cold-start resume behind the splash).
       runApp(
         StarterKit.mixpanelWrapper(
           token: AppEnv.mixpanelToken,
           distinctId: installId ?? '',
-          child: const MyApp(),
+          child: const AppOpenAdManager(child: MyApp()),
         ),
       );
     },

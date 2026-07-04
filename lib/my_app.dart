@@ -24,6 +24,9 @@ class MyApp extends StatelessWidget {
         // screens can read it via context if needed. `.value` because the kit
         // owns the bloc's lifecycle.
         BlocProvider<AnalyticsBloc>.value(value: StarterKit.analyticsBloc),
+        // `.value` because the kit owns the ads bloc's lifecycle. Lets screens
+        // read ads state (e.g. the banner widget, premium gating) via context.
+        BlocProvider<AdsBloc>.value(value: StarterKit.adsBloc),
         BlocProvider(create: (_) => sl<VpnServersBloc>()),
         BlocProvider(create: (_) => sl<VpnConnectionBloc>()),
         BlocProvider(create: (_) => sl<ProxyBloc>()),

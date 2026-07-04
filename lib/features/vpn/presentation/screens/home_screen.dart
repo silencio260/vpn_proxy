@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:genrevibes_starter_kit/starter_kit.dart';
 
+import '../../../../../config/app_env.dart';
 import '../../../../../config/routes_manager.dart';
 import '../../../../../core/utils/app_colors.dart';
 import '../../../../../core/utils/country_util.dart';
@@ -67,6 +69,10 @@ class _HomeScreenState extends State<HomeScreen> {
               if (state.stage == VpnStage.connected &&
                   _lastStage != VpnStage.connected) {
                 setState(() => _elapsed = Duration.zero);
+                // Show an interstitial once a connection is established. The
+                // AdsBloc gates on premium, suppression and the configured
+                // interval, so we just request it here.
+                StarterKit.adsBloc.add(const AdsShowInterstitial());
               } else if (state.stage == VpnStage.disconnected) {
                 setState(() => _elapsed = Duration.zero);
               }
@@ -117,6 +123,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
+                // Anchored banner ad. Hidden automatically for premium users
+                // and when no banner ad unit id is configured.
+                StarterKit.bannerAd(adUnitId: AppEnv.bannerAdIdOrNull),
               ],
             );
           },

@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 
 import 'package:installed_apps/installed_apps.dart';
 
+import '../../../../core/constants/app_packages.dart';
 import '../../domain/entities/installed_app_entity.dart';
 
 /// Lists the device's user-launchable apps for the split-tunneling picker.
@@ -17,18 +18,15 @@ abstract class InstalledAppsDataSource {
 }
 
 class InstalledAppsDataSourceImpl implements InstalledAppsDataSource {
-  /// Own applicationId — never offered for exclusion (excluding ourselves
-  /// from our own tunnel makes no sense and confuses the engine's routing).
-  static const _ownPackage =
-      'com.privatevpnproxy.proxifyprivatevpntunnel.vpn.proxy.vpn_proxy';
-
   @override
   Future<List<InstalledAppEntity>> getInstalledApps() async {
     if (!Platform.isAndroid) return const [];
     // positional args: excludeSystemApps, withIcon
     final apps = await InstalledApps.getInstalledApps(true, true);
+    // Hide our own app: it is always force-excluded from the tunnel by the
+    // proxy engine, so users must not be able to toggle it here.
     final list = apps
-        .where((a) => a.packageName != _ownPackage)
+        .where((a) => a.packageName != kOwnPackageName)
         .map((a) => InstalledAppEntity(
               name: a.name,
               packageName: a.packageName,

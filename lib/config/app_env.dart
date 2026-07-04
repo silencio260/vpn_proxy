@@ -63,4 +63,13 @@ class AppEnv {
 
   static String? get mixpanelTokenOrNull => _orNull(mixpanelToken);
   static String? get feedbackNestApiKeyOrNull => _orNull(feedbackNestApiKey);
+
+  // Ad unit ids as null-when-blank, so an unconfigured build passes `null` to
+  // the ads config (the type simply doesn't load) instead of trying to load a
+  // blank ad unit id.
+  static String? get bannerAdIdOrNull => _orNull(bannerAdId);
+  static String? get interstitialAdIdOrNull => _orNull(interstitialAdId);
+  static String? get rewardedAdIdOrNull => _orNull(rewardedAdId);
+  static String? get nativeAdIdOrNull => _orNull(nativeAdId);
+  static String? get appOpenAdIdOrNull => _orNull(appOpenAdId);
 }
