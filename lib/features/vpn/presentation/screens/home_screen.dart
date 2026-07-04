@@ -6,6 +6,7 @@ import 'package:genrevibes_starter_kit/starter_kit.dart';
 
 import '../../../../../config/app_env.dart';
 import '../../../../../config/routes_manager.dart';
+import '../../../../../core/ads/ads_dev_control.dart';
 import '../../../../../core/utils/app_colors.dart';
 import '../../../../../core/utils/country_util.dart';
 import '../../../proxy/domain/entities/proxy_entity.dart';
@@ -71,8 +72,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 setState(() => _elapsed = Duration.zero);
                 // Show an interstitial once a connection is established. The
                 // AdsBloc gates on premium, suppression and the configured
-                // interval, so we just request it here.
-                StarterKit.adsBloc.add(const AdsShowInterstitial());
+                // interval; the dev switch is honored here too.
+                if (!AdsDevControl.instance.adsHidden) {
+                  StarterKit.adsBloc.add(const AdsShowInterstitial());
+                }
               } else if (state.stage == VpnStage.disconnected) {
                 setState(() => _elapsed = Duration.zero);
               }
@@ -124,8 +127,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 // Anchored banner ad. Hidden automatically for premium users
-                // and when no banner ad unit id is configured.
-                StarterKit.bannerAd(adUnitId: AppEnv.bannerAdIdOrNull),
+                // and when no banner ad unit id is configured. Also reacts to
+                // the dev "disable ad display" switch.
+                AnimatedBuilder(
+                  animation: AdsDevControl.instance.listenable,
+                  builder: (context, _) => AdsDevControl.instance.adsHidden
+                      ? const SizedBox.shrink()
+                      : StarterKit.bannerAd(
+                          adUnitId: AppEnv.bannerAdIdOrNull,
+                        ),
+                ),
               ],
             );
           },

@@ -12,4 +12,10 @@ class AppConstants {
   static const String firestorePublishedProxiesUrl =
       'https://firestore.googleapis.com/v1/projects/vpn-proxy-project-9bb30/databases/(default)/documents/published/current';
   static const String proxyListCacheKey = 'proxy_list';
+
+  /// Local HTTP proxy inbound the proxy engine adds to the Xray config.
+  /// Requests sent through 127.0.0.1:this port egress at the tunnel exit node
+  /// — even from this app, which is otherwise excluded from the tunnel. Used
+  /// by the dev IP check to verify the tunnel's egress IP/location.
+  static const int localHttpProxyPort = 10809;
 }

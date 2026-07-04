@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_v2ray/flutter_v2ray.dart';
 
 import '../../../core/constants/app_packages.dart';
+import '../../../core/utils/app_constants.dart';
 import '../../vpn/data/models/vpn_status_model.dart';
 import '../domain/entities/proxy_entity.dart';
 
@@ -77,12 +79,37 @@ class ProxyEngineService {
     debugPrint('[PROXY] starting Xray for ${proxy.type} → $remark');
     await _engine.startV2Ray(
       remark: remark,
-      config: parsed.getFullConfiguration(),
+      config: _withLocalHttpInbound(parsed.getFullConfiguration()),
       blockedApps: effectiveBlockedApps.toList(),
       // Always run the full VpnService tunnel — stealth vs vpn mode is a
       // server-selection concern (TLS camouflage), never proxyOnly.
       proxyOnly: false,
     );
+  }
+
+  /// Append a local HTTP proxy inbound to the Xray config so in-app requests
+  /// can opt into the tunnel by proxying through 127.0.0.1 (this app itself is
+  /// excluded from the VpnService tunnel). Xray forwards them to the active
+  /// outbound, so they egress at the exit node. Falls back to the original
+  /// config untouched if the JSON is not in the expected shape.
+  String _withLocalHttpInbound(String config) {
+    try {
+      final map = jsonDecode(config) as Map<String, dynamic>;
+      final inbounds =
+          (map['inbounds'] as List?)?.cast<dynamic>() ?? <dynamic>[];
+      inbounds.add({
+        'tag': 'in_http_local',
+        'listen': '127.0.0.1',
+        'port': AppConstants.localHttpProxyPort,
+        'protocol': 'http',
+        'settings': <String, dynamic>{},
+      });
+      map['inbounds'] = inbounds;
+      return jsonEncode(map);
+    } catch (e) {
+      debugPrint('[PROXY] could not add local http inbound: $e');
+      return config;
+    }
   }
 
   Future<void> stopProxy() async {

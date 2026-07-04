@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:genrevibes_starter_kit/starter_kit.dart';
 
+import 'ads_dev_control.dart';
+
 /// Shows an App Open ad when the app returns to the foreground.
 ///
 /// Wraps the app root and observes lifecycle changes. On resume from background
@@ -43,6 +45,9 @@ class _AppOpenAdManagerState extends State<AppOpenAdManager>
       _isFirstResume = false;
       return;
     }
+    // Respect the dev display switch (suppression also blocks it, but this
+    // avoids even queuing the show).
+    if (AdsDevControl.instance.adsHidden) return;
     StarterKit.adsBloc.add(const AdsShowAppOpen());
   }
 

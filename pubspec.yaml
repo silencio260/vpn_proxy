@@ -52,6 +52,10 @@ dependencies:
   # UI
   lottie: ^3.3.1
 
+  # Opening external links (e.g. the dev "What's my IP" page in a browser,
+  # which — unlike an in-app fetch — routes through the tunnel).
+  url_launcher: ^6.3.0
+
   # GenRevibes internal plugin (Analytics, Ads, IAP, Onboarding, Settings,
   # Remote Config, etc.). Manages Firebase Analytics/Crashlytics/Remote Config
   # wiring — requires Firebase.initializeApp() in the host app first.

@@ -11,6 +11,7 @@ import 'package:genrevibes_starter_kit/starter_kit.dart';
 import 'bloc_observer.dart';
 import 'config/app_env.dart';
 import 'container_injector.dart';
+import 'core/ads/ads_dev_control.dart';
 import 'core/ads/app_open_ad_manager.dart';
 import 'firebase_options.dart';
 import 'my_app.dart';
@@ -91,25 +92,32 @@ Future<void> main() async {
       Bloc.observer = AppBlocObserver();
       await initAppDependencies();
 
+      // Load developer ad switches (debug-only Profile → Developer section)
+      // before deciding whether to initialize ads. When "disable ad requests"
+      // is on we skip AdsInitialize entirely, so the SDK makes no ad requests.
+      await AdsDevControl.instance.load();
+
       // Initialize AdMob and preload ads. AdsInitialize sets up the SDK and
       // auto-preloads interstitial + app-open (and reloads them after each
       // show). Ad unit ids come from the env config; when a build has none
       // configured they are null and that ad type simply never loads. Ads are
       // suppressed automatically for premium users via AdSuppressionManager.
       // Interstitial/app-open frequency is capped so users aren't spammed.
-      StarterKit.adsBloc.add(
-        AdsInitialize(
-          config: AdsConfig(
-            bannerAdUnitId: AppEnv.bannerAdIdOrNull,
-            interstitialAdUnitId: AppEnv.interstitialAdIdOrNull,
-            rewardedAdUnitId: AppEnv.rewardedAdIdOrNull,
-            nativeAdUnitId: AppEnv.nativeAdIdOrNull,
-            appOpenAdUnitId: AppEnv.appOpenAdIdOrNull,
-            minInterstitialInterval: 60,
-            minAppOpenInterval: 60,
+      if (AdsDevControl.instance.requestsAllowed) {
+        StarterKit.adsBloc.add(
+          AdsInitialize(
+            config: AdsConfig(
+              bannerAdUnitId: AppEnv.bannerAdIdOrNull,
+              interstitialAdUnitId: AppEnv.interstitialAdIdOrNull,
+              rewardedAdUnitId: AppEnv.rewardedAdIdOrNull,
+              nativeAdUnitId: AppEnv.nativeAdIdOrNull,
+              appOpenAdUnitId: AppEnv.appOpenAdIdOrNull,
+              minInterstitialInterval: 60,
+              minAppOpenInterval: 60,
+            ),
           ),
-        ),
-      );
+        );
+      }
 
       // Note: app_open and the retention/session/segment events are already
       // logged by StarterKit.initialize above. No explicit logAppOpen call
