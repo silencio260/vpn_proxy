@@ -13,6 +13,7 @@ import 'config/app_env.dart';
 import 'container_injector.dart';
 import 'core/ads/ads_dev_control.dart';
 import 'core/ads/app_open_ad_manager.dart';
+import 'core/dev/proxy_display_dev_control.dart';
 import 'firebase_options.dart';
 import 'my_app.dart';
 
@@ -96,6 +97,10 @@ Future<void> main() async {
       // before deciding whether to initialize ads. When "disable ad requests"
       // is on we skip AdsInitialize entirely, so the SDK makes no ad requests.
       await AdsDevControl.instance.load();
+
+      // Load the developer proxy-display switch (debug-only Profile →
+      // Developer). Controls whether proxy cards reveal the raw server IP.
+      await ProxyDisplayDevControl.instance.load();
 
       // Initialize AdMob and preload ads. AdsInitialize sets up the SDK and
       // auto-preloads interstitial + app-open (and reloads them after each

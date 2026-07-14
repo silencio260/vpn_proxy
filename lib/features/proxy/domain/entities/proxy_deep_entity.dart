@@ -4,6 +4,12 @@ class ProxyDeepEntity extends Equatable {
   final bool? tunnelOk;
   final String? egressIp;
   final String? egressCountry;
+
+  /// Geographic region / state of the exit node (e.g. "Hesse", "California").
+  final String? egressRegion;
+
+  /// City of the exit node (e.g. "Frankfurt am Main").
+  final String? egressCity;
   final int? realLatencyMs;
   final double? downloadMbps;
   final String? downloadTier;
@@ -16,6 +22,8 @@ class ProxyDeepEntity extends Equatable {
     this.tunnelOk,
     this.egressIp,
     this.egressCountry,
+    this.egressRegion,
+    this.egressCity,
     this.realLatencyMs,
     this.downloadMbps,
     this.downloadTier,
@@ -30,6 +38,8 @@ class ProxyDeepEntity extends Equatable {
     tunnelOk,
     egressIp,
     egressCountry,
+    egressRegion,
+    egressCity,
     realLatencyMs,
     downloadMbps,
     downloadTier,

@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
+import '../../../../core/dev/proxy_display_dev_control.dart';
 import '../../../../core/utils/app_colors.dart';
 import '../../../../core/utils/country_util.dart';
 import '../../domain/entities/proxy_entity.dart';
@@ -27,6 +29,45 @@ class ProxyCard extends StatelessWidget {
   /// Only show the address when it's a bare IPv4-style value (digits and dots).
   /// Hostnames / anything else are hidden from the user.
   bool get _showAddress => RegExp(r'^[0-9.]+$').hasMatch(proxy.address);
+
+  /// Top-level administrative division of the exit node (US state, CA
+  /// province, etc.) — surfaced as the "state" under the country name.
+  String? get _state {
+    final region = proxy.deep?.egressRegion;
+    return (region != null && region.isNotEmpty) ? region : null;
+  }
+
+  Widget _buildStateLine(AppPalette palette) {
+    final state = _state;
+    if (state == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 3),
+      child: Text(
+        state,
+        style: TextStyle(color: palette.textHint, fontSize: 12),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+
+  /// Additional developer-only line shown below the state. The state remains
+  /// visible regardless of this switch; turning the switch off removes only
+  /// the IP line.
+  Widget _buildDebugIpLine(AppPalette palette) {
+    final showIp =
+        kDebugMode && ProxyDisplayDevControl.instance.showProxyIp.value;
+    if (!showIp || !_showAddress) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 3),
+      child: Text(
+        'IP ${proxy.address}',
+        style: TextStyle(color: palette.textHint, fontSize: 12),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
 
   int? get _latency => proxy.health?.latencyMs;
 
@@ -109,18 +150,13 @@ class ProxyCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if (_showAddress) ...[
-                    const SizedBox(height: 3),
-                    Text(
-                      'IP ${proxy.address}',
-                      style: TextStyle(
-                        color: palette.textSecondary,
-                        fontSize: 12,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                  // The exit-node state is always shown. Debug builds can add
+                  // the raw server IP as a separate line beneath it.
+                  _buildStateLine(palette),
+                  AnimatedBuilder(
+                    animation: ProxyDisplayDevControl.instance.listenable,
+                    builder: (context, _) => _buildDebugIpLine(palette),
+                  ),
                 ],
               ),
             ),

@@ -11,7 +11,10 @@ class AppConstants {
 
   static const String firestorePublishedProxiesUrl =
       'https://firestore.googleapis.com/v1/projects/vpn-proxy-project-9bb30/databases/(default)/documents/published/current';
-  static const String proxyListCacheKey = 'proxy_list';
+  // v2: cache entries written before the deep geo fields (egressRegion/
+  // egressCity) existed lack the state — bumping the key discards them so the
+  // list is refetched with the full geo data.
+  static const String proxyListCacheKey = 'proxy_list_v2';
 
   /// Local HTTP proxy inbound the proxy engine adds to the Xray config.
   /// Requests sent through 127.0.0.1:this port egress at the tunnel exit node

@@ -8,6 +8,7 @@ import '../../../../../config/routes_manager.dart';
 import '../../../../../config/theme_cubit.dart';
 import '../../../../../core/ads/ads_dev_control.dart';
 import '../../../../../core/dev/dev_ip_check.dart';
+import '../../../../../core/dev/proxy_display_dev_control.dart';
 import '../../../../../core/utils/app_colors.dart';
 import '../../../proxy/presentation/bloc/proxy_connection_bloc/proxy_connection_bloc.dart';
 import '../../../settings/domain/entities/connection_settings_entity.dart';
@@ -165,6 +166,15 @@ class _DevSection extends StatelessWidget {
           listenable: AdsDevControl.instance.requestsDisabled,
           valueOf: () => AdsDevControl.instance.requestsDisabled.value,
           onChanged: AdsDevControl.instance.setRequestsDisabled,
+        ),
+        _DevSwitchTile(
+          icon: Icons.dns_rounded,
+          label: 'Show proxy IP address',
+          subtitle: 'Server list also shows the raw IP below the state.',
+          palette: palette,
+          listenable: ProxyDisplayDevControl.instance.showProxyIp,
+          valueOf: () => ProxyDisplayDevControl.instance.showProxyIp.value,
+          onChanged: ProxyDisplayDevControl.instance.setShowProxyIp,
         ),
       ],
     );

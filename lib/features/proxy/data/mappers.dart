@@ -21,6 +21,8 @@ extension ProxyDeepModelMapper on ProxyDeepModel {
     tunnelOk: tunnelOk,
     egressIp: egressIp,
     egressCountry: egressCountry,
+    egressRegion: egressRegion,
+    egressCity: egressCity,
     realLatencyMs: realLatencyMs,
     downloadMbps: downloadMbps,
     downloadTier: downloadTier,
