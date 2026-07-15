@@ -18,19 +18,26 @@ class ProxyLoading extends ProxyState {
 class ProxyLoaded extends ProxyState {
   final List<ProxyEntity> proxies;
   final ProxyEntity selectedProxy;
+  final bool selectionIsManual;
 
-  const ProxyLoaded({required this.proxies, required this.selectedProxy});
+  const ProxyLoaded({
+    required this.proxies,
+    required this.selectedProxy,
+    this.selectionIsManual = false,
+  });
 
   ProxyLoaded copyWith({
     List<ProxyEntity>? proxies,
     ProxyEntity? selectedProxy,
+    bool? selectionIsManual,
   }) => ProxyLoaded(
     proxies: proxies ?? this.proxies,
     selectedProxy: selectedProxy ?? this.selectedProxy,
+    selectionIsManual: selectionIsManual ?? this.selectionIsManual,
   );
 
   @override
-  List<Object?> get props => [proxies, selectedProxy];
+  List<Object?> get props => [proxies, selectedProxy, selectionIsManual];
 }
 
 class ProxyError extends ProxyState {

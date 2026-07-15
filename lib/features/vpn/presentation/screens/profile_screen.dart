@@ -1,3 +1,4 @@
+import 'dart:async' show TimeoutException;
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -9,7 +10,9 @@ import '../../../../../config/theme_cubit.dart';
 import '../../../../../core/ads/ads_dev_control.dart';
 import '../../../../../core/dev/dev_ip_check.dart';
 import '../../../../../core/dev/proxy_display_dev_control.dart';
+import '../../../../../core/dev/proxy_health_dev_control.dart';
 import '../../../../../core/utils/app_colors.dart';
+import '../../../proxy/presentation/bloc/proxy_bloc/proxy_bloc.dart';
 import '../../../proxy/presentation/bloc/proxy_connection_bloc/proxy_connection_bloc.dart';
 import '../../../settings/domain/entities/connection_settings_entity.dart';
 import '../../../settings/presentation/cubit/connection_settings_cubit.dart';
@@ -29,8 +32,10 @@ class ProfileScreen extends StatelessWidget {
           : AppBar(
               backgroundColor: palette.background,
               leading: IconButton(
-                icon:
-                    Icon(Icons.arrow_back_rounded, color: palette.textPrimary),
+                icon: Icon(
+                  Icons.arrow_back_rounded,
+                  color: palette.textPrimary,
+                ),
                 onPressed: () => Navigator.pop(context),
               ),
               title: Text(
@@ -126,6 +131,94 @@ class _DevSection extends StatelessWidget {
     );
   }
 
+  void _clearSelectedLocation(BuildContext context) {
+    final stage = context.read<ProxyConnectionBloc>().state.stage;
+    if (stage != VpnStage.disconnected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Disconnect before clearing the location.'),
+        ),
+      );
+      return;
+    }
+    context.read<ProxyBloc>().add(const ClearProxySelectionEvent());
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Selected location cleared.')));
+  }
+
+  Future<void> _setSimulateActiveProxyFailure(
+    BuildContext context,
+    bool enabled,
+  ) async {
+    final connection = context.read<ProxyConnectionBloc>();
+    if (!enabled) {
+      connection.add(const ClearSimulatedProxyFailureEvent());
+      return;
+    }
+
+    final state = connection.state;
+    final proxyId = state.activeProxyId;
+    if (state.stage != VpnStage.connected || proxyId == null) {
+      ProxyHealthDevControl.instance.clearSimulation();
+      ProxyHealthDevControl.instance.report(
+        'Connect to a proxy before simulating an active failure.',
+      );
+      return;
+    }
+    ProxyHealthDevControl.instance.simulateFailure(proxyId);
+    connection.add(const RunProxyHealthCheckNowEvent());
+  }
+
+  Future<void> _setFindDeadServerEnabled(
+    BuildContext context,
+    bool enabled,
+  ) async {
+    final devControl = ProxyHealthDevControl.instance;
+    devControl.setFindDeadServerEnabled(enabled);
+    if (!enabled) return;
+
+    final proxyBloc = context.read<ProxyBloc>();
+    final connectionBloc = context.read<ProxyConnectionBloc>();
+    var proxyState = proxyBloc.state;
+
+    try {
+      if (proxyState is! ProxyLoaded || proxyState.proxies.isEmpty) {
+        if (proxyState is! ProxyLoading) {
+          proxyBloc.add(const FetchProxiesEvent());
+        }
+        proxyState = await proxyBloc.stream
+            .firstWhere((state) => state is! ProxyLoading)
+            .timeout(const Duration(seconds: 20));
+        if (proxyState is ProxyInitial) {
+          proxyBloc.add(const FetchProxiesEvent());
+          proxyState = await proxyBloc.stream
+              .firstWhere(
+                (state) => state is ProxyLoaded || state is ProxyError,
+              )
+              .timeout(const Duration(seconds: 20));
+        }
+      }
+
+      if (!context.mounted || !devControl.findDeadServerEnabled.value) return;
+      if (proxyState is ProxyLoaded && proxyState.proxies.isNotEmpty) {
+        connectionBloc.add(FindDeadProxyAndConnectEvent(proxyState.proxies));
+        return;
+      }
+      devControl.report('Could not load servers for the dead-server test.');
+    } on TimeoutException {
+      if (devControl.findDeadServerEnabled.value) {
+        devControl.report('Timed out while loading servers for the test.');
+      }
+    }
+  }
+
+  void _runProxyHealthCheck(BuildContext context) {
+    context.read<ProxyConnectionBloc>().add(
+      const RunProxyHealthCheckNowEvent(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -149,6 +242,50 @@ class _DevSection extends StatelessWidget {
           palette: palette,
           onTap: () => _openIpCheck(context),
         ),
+        _Tile(
+          icon: Icons.location_off_rounded,
+          label: 'Clear selected location',
+          palette: palette,
+          onTap: () => _clearSelectedLocation(context),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 4, top: 16, bottom: 4),
+          child: Text(
+            'Proxy failover testing',
+            style: TextStyle(
+              color: palette.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        _DevSwitchTile(
+          icon: Icons.warning_amber_rounded,
+          label: 'Simulate active proxy failure',
+          subtitle: 'Forces the connected proxy into the maintenance flow.',
+          palette: palette,
+          listenable: ProxyHealthDevControl.instance.simulationEnabled,
+          valueOf: () => ProxyHealthDevControl.instance.simulationEnabled.value,
+          onChanged: (enabled) =>
+              _setSimulateActiveProxyFailure(context, enabled),
+        ),
+        _DevSwitchTile(
+          icon: Icons.travel_explore_rounded,
+          label: 'Find dead server on connect',
+          subtitle: 'Turning this on immediately searches for a dead server.',
+          palette: palette,
+          listenable: ProxyHealthDevControl.instance.findDeadServerEnabled,
+          valueOf: () =>
+              ProxyHealthDevControl.instance.findDeadServerEnabled.value,
+          onChanged: (enabled) => _setFindDeadServerEnabled(context, enabled),
+        ),
+        _Tile(
+          icon: Icons.monitor_heart_outlined,
+          label: 'Run health check now',
+          palette: palette,
+          onTap: () => _runProxyHealthCheck(context),
+        ),
+        _ProxyHealthDevStatus(palette: palette),
         _DevSwitchTile(
           icon: Icons.visibility_off_rounded,
           label: 'Disable ad display',
@@ -177,6 +314,42 @@ class _DevSection extends StatelessWidget {
           onChanged: ProxyDisplayDevControl.instance.setShowProxyIp,
         ),
       ],
+    );
+  }
+}
+
+class _ProxyHealthDevStatus extends StatelessWidget {
+  final AppPalette palette;
+
+  const _ProxyHealthDevStatus({required this.palette});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<String?>(
+      valueListenable: ProxyHealthDevControl.instance.statusMessage,
+      builder: (context, message, _) {
+        if (message == null || message.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        return Container(
+          width: double.infinity,
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: palette.primary.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: palette.primary.withValues(alpha: 0.35)),
+          ),
+          child: Text(
+            message,
+            style: TextStyle(
+              color: palette.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -318,14 +491,15 @@ class _IpRow extends StatelessWidget {
                 ),
                 Text(
                   r.location,
-                  style:
-                      TextStyle(color: palette.textSecondary, fontSize: 12),
+                  style: TextStyle(color: palette.textSecondary, fontSize: 12),
                 ),
                 if (r.isp.isNotEmpty)
                   Text(
                     r.isp,
-                    style:
-                        TextStyle(color: palette.textSecondary, fontSize: 11),
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 11,
+                    ),
                   ),
               ],
             );
@@ -384,10 +558,7 @@ class _DevSwitchTile extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: TextStyle(
-                    color: palette.textSecondary,
-                    fontSize: 11,
-                  ),
+                  style: TextStyle(color: palette.textSecondary, fontSize: 11),
                 ),
               ],
             ),
@@ -417,8 +588,7 @@ class _ThemeTile extends StatelessWidget {
         final isDark = mode == ThemeMode.dark;
         return Container(
           margin: const EdgeInsets.symmetric(vertical: 4),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           decoration: BoxDecoration(
             color: palette.card,
             borderRadius: BorderRadius.circular(14),
@@ -510,9 +680,9 @@ class _VpnModeTile extends StatelessWidget {
                 value: isVpn,
                 activeThumbColor: palette.primary,
                 onChanged: (enabled) {
-                  context
-                      .read<ConnectionSettingsCubit>()
-                      .toggleVpnMode(enabled);
+                  context.read<ConnectionSettingsCubit>().toggleVpnMode(
+                    enabled,
+                  );
                   // Auto-reconnect so the mode change takes effect right away.
                   final connectionBloc = context.read<ProxyConnectionBloc>();
                   final stage = connectionBloc.state.stage;
@@ -561,8 +731,10 @@ class _Tile extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        trailing: Icon(Icons.chevron_right_rounded,
-            color: palette.textSecondary),
+        trailing: Icon(
+          Icons.chevron_right_rounded,
+          color: palette.textSecondary,
+        ),
         onTap: onTap,
       ),
     );

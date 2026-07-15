@@ -22,9 +22,14 @@ class LoadCachedProxiesEvent extends ProxyEvent {
 
 class SelectProxyEvent extends ProxyEvent {
   final ProxyEntity proxy;
+  final bool isManual;
 
-  const SelectProxyEvent(this.proxy);
+  const SelectProxyEvent(this.proxy, {this.isManual = true});
 
   @override
-  List<Object?> get props => [proxy];
+  List<Object?> get props => [proxy, isManual];
+}
+
+class ClearProxySelectionEvent extends ProxyEvent {
+  const ClearProxySelectionEvent();
 }

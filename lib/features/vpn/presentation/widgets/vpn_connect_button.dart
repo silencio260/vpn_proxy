@@ -10,11 +10,7 @@ class VpnConnectButton extends StatefulWidget {
   final VpnConnectionState state;
   final VoidCallback onTap;
 
-  const VpnConnectButton({
-    super.key,
-    required this.state,
-    required this.onTap,
-  });
+  const VpnConnectButton({super.key, required this.state, required this.onTap});
 
   @override
   State<VpnConnectButton> createState() => _VpnConnectButtonState();
@@ -29,12 +25,15 @@ class _VpnConnectButtonState extends State<VpnConnectButton>
   late final AnimationController _pulseController;
 
   bool get _shouldPulse => switch (widget.state.stage) {
-        VpnStage.connected ||
-        VpnStage.connecting ||
-        VpnStage.disconnecting =>
-          true,
-        _ => false,
-      };
+    VpnStage.connected ||
+    VpnStage.unhealthy ||
+    VpnStage.error ||
+    VpnStage.finding ||
+    VpnStage.connecting ||
+    VpnStage.validating ||
+    VpnStage.disconnecting => true,
+    _ => false,
+  };
 
   @override
   void initState() {
@@ -72,13 +71,21 @@ class _VpnConnectButtonState extends State<VpnConnectButton>
     final palette = context.palette;
     final active = switch (widget.state.stage) {
       VpnStage.connected => palette.success,
-      VpnStage.connecting || VpnStage.disconnecting => palette.warning,
+      VpnStage.unhealthy || VpnStage.error => AppColors.criticalRed,
+      VpnStage.finding ||
+      VpnStage.connecting ||
+      VpnStage.validating ||
+      VpnStage.disconnecting => palette.warning,
       _ => palette.primary,
     };
     final label = switch (widget.state.stage) {
       VpnStage.connected => 'Tap To Disconnect',
+      VpnStage.unhealthy => 'Refresh And Reconnect',
+      VpnStage.finding => 'Finding A Server…',
       VpnStage.connecting => 'Connecting…',
+      VpnStage.validating => 'Validating…',
       VpnStage.disconnecting => 'Disconnecting…',
+      VpnStage.error => 'Retry Connection',
       _ => 'Tap To Connect',
     };
 
@@ -201,7 +208,8 @@ class _FluidWavePainter extends CustomPainter {
       for (var k = 0; k < count; k++) {
         // Slight per-ring twist keeps dots from lining up on rigid spokes.
         final theta = 2 * math.pi * k / count + f * 0.5;
-        final fold = 0.5 * math.sin(2 * theta + t + f * 4.0) +
+        final fold =
+            0.5 * math.sin(2 * theta + t + f * 4.0) +
             0.3 * math.sin(3 * theta - t + f * 7.0) +
             0.2 * math.sin(5 * theta + 2 * t + f * 2.0);
         final r = base + amp * fold;

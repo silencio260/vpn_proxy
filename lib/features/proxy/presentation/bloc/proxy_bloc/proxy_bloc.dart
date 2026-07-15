@@ -19,23 +19,35 @@ class ProxyBloc extends Bloc<ProxyEvent, ProxyState> {
     on<FetchProxiesEvent>(_onFetch);
     on<LoadCachedProxiesEvent>(_onLoadCached);
     on<SelectProxyEvent>(_onSelect);
+    on<ClearProxySelectionEvent>(_onClearSelection);
   }
 
   Future<void> _onFetch(
     FetchProxiesEvent event,
     Emitter<ProxyState> emit,
   ) async {
+    final previousSelected = state is ProxyLoaded
+        ? (state as ProxyLoaded).selectedProxy
+        : null;
+    final previousSelectionWasManual =
+        state is ProxyLoaded && (state as ProxyLoaded).selectionIsManual;
     emit(const ProxyLoading());
     final result = await getProxies(NoParams.instance);
-    result.fold(
-      (failure) => emit(ProxyError(_mapFailure(failure))),
-      (proxies) => emit(
+    result.fold((failure) => emit(ProxyError(_mapFailure(failure))), (proxies) {
+      final selected = previousSelected == null || previousSelected.isEmpty
+          ? ProxyEntity.empty
+          : proxies.firstWhere(
+              (proxy) => proxy.id == previousSelected.id,
+              orElse: () => ProxyEntity.empty,
+            );
+      emit(
         ProxyLoaded(
           proxies: proxies,
-          selectedProxy: proxies.isNotEmpty ? proxies.first : ProxyEntity.empty,
+          selectedProxy: selected,
+          selectionIsManual: !selected.isEmpty && previousSelectionWasManual,
         ),
-      ),
-    );
+      );
+    });
   }
 
   Future<void> _onLoadCached(
@@ -55,12 +67,7 @@ class ProxyBloc extends Bloc<ProxyEvent, ProxyState> {
           emit(const ProxyInitial());
           return;
         }
-        emit(
-          ProxyLoaded(
-            proxies: proxies,
-            selectedProxy: proxies.first,
-          ),
-        );
+        emit(ProxyLoaded(proxies: proxies, selectedProxy: ProxyEntity.empty));
       },
     );
   }
@@ -68,7 +75,27 @@ class ProxyBloc extends Bloc<ProxyEvent, ProxyState> {
   void _onSelect(SelectProxyEvent event, Emitter<ProxyState> emit) {
     final current = state;
     if (current is ProxyLoaded) {
-      emit(current.copyWith(selectedProxy: event.proxy));
+      emit(
+        current.copyWith(
+          selectedProxy: event.proxy,
+          selectionIsManual: event.isManual,
+        ),
+      );
+    }
+  }
+
+  void _onClearSelection(
+    ClearProxySelectionEvent event,
+    Emitter<ProxyState> emit,
+  ) {
+    final current = state;
+    if (current is ProxyLoaded && !current.selectedProxy.isEmpty) {
+      emit(
+        current.copyWith(
+          selectedProxy: ProxyEntity.empty,
+          selectionIsManual: false,
+        ),
+      );
     }
   }
 

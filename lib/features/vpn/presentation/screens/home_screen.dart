@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:genrevibes_starter_kit/starter_kit.dart';
@@ -7,13 +8,12 @@ import 'package:genrevibes_starter_kit/starter_kit.dart';
 import '../../../../../config/app_env.dart';
 import '../../../../../config/routes_manager.dart';
 import '../../../../../core/ads/ads_dev_control.dart';
+import '../../../../../core/dev/proxy_health_dev_control.dart';
 import '../../../../../core/utils/app_colors.dart';
 import '../../../../../core/utils/country_util.dart';
 import '../../../proxy/domain/entities/proxy_entity.dart';
 import '../../../proxy/presentation/bloc/proxy_bloc/proxy_bloc.dart';
 import '../../../proxy/presentation/bloc/proxy_connection_bloc/proxy_connection_bloc.dart';
-import '../../../settings/domain/entities/connection_settings_entity.dart';
-import '../../../settings/presentation/cubit/connection_settings_cubit.dart';
 // VpnConnectionBloc is imported for the shared VpnConnectionState/VpnStage
 // types (declared in its library); the connect flow is driven by
 // ProxyConnectionBloc.
@@ -27,7 +27,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Timer? _ticker;
   Duration _elapsed = Duration.zero;
   VpnStage? _lastStage;
@@ -36,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       final stage = context.read<ProxyConnectionBloc>().state.stage;
       if (stage == VpnStage.connected) {
@@ -46,8 +47,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _ticker?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    context.read<ProxyConnectionBloc>().add(
+      ProxyForegroundChangedEvent(state == AppLifecycleState.resumed),
+    );
   }
 
   String _formatTimer(Duration d) {
@@ -66,6 +75,19 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SafeArea(
         child: BlocConsumer<ProxyConnectionBloc, VpnConnectionState>(
           listener: (context, state) {
+            final activeProxyId = state.activeProxyId;
+            final proxyState = context.read<ProxyBloc>().state;
+            if (activeProxyId != null && proxyState is ProxyLoaded) {
+              final matches = proxyState.proxies.where(
+                (proxy) => proxy.id == activeProxyId,
+              );
+              if (matches.isNotEmpty &&
+                  proxyState.selectedProxy.id != activeProxyId) {
+                context.read<ProxyBloc>().add(
+                  SelectProxyEvent(matches.first, isManual: false),
+                );
+              }
+            }
             if (_lastStage != state.stage) {
               if (state.stage == VpnStage.connected &&
                   _lastStage != VpnStage.connected) {
@@ -105,6 +127,18 @@ class _HomeScreenState extends State<HomeScreen> {
                             fontWeight: FontWeight.w700,
                           ),
                         ),
+                        if ((connectionState.stage == VpnStage.unhealthy ||
+                                connectionState.stage == VpnStage.error) &&
+                            connectionState.errorMessage != null) ...[
+                          const SizedBox(height: 14),
+                          _ConnectionAlert(
+                            state: connectionState,
+                            palette: palette,
+                            onReconnect: () =>
+                                _onConnectTap(context, connectionState),
+                          ),
+                        ],
+                        if (kDebugMode) _ProxyHealthDevNotice(palette: palette),
                         const SizedBox(height: 16),
                         Text(
                           _formatTimer(_elapsed),
@@ -133,9 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   animation: AdsDevControl.instance.listenable,
                   builder: (context, _) => AdsDevControl.instance.adsHidden
                       ? const SizedBox.shrink()
-                      : StarterKit.bannerAd(
-                          adUnitId: AppEnv.bannerAdIdOrNull,
-                        ),
+                      : StarterKit.bannerAd(adUnitId: AppEnv.bannerAdIdOrNull),
                 ),
               ],
             );
@@ -146,25 +178,44 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _statusLabel(VpnStage stage) => switch (stage) {
-        VpnStage.connected => 'Connected',
-        VpnStage.connecting => 'Connecting',
-        VpnStage.disconnecting => 'Disconnecting',
-        VpnStage.error => 'Error',
-        _ => 'Disconnected',
-      };
+    VpnStage.connected => 'Connected',
+    VpnStage.finding => 'Finding an available server',
+    VpnStage.connecting => 'Connecting',
+    VpnStage.validating => 'Validating connection',
+    VpnStage.unhealthy => 'Proxy connection unavailable',
+    VpnStage.disconnecting => 'Disconnecting',
+    VpnStage.error => 'Error',
+    _ => 'Disconnected',
+  };
 
   void _onConnectTap(BuildContext context, VpnConnectionState state) {
     final bloc = context.read<ProxyConnectionBloc>();
-    if (state.stage == VpnStage.connecting ||
+    if (state.stage == VpnStage.finding ||
+        state.stage == VpnStage.connecting ||
+        state.stage == VpnStage.validating ||
         state.stage == VpnStage.connected) {
       bloc.add(const DisconnectProxyEvent());
       return;
     }
+    if (state.stage == VpnStage.unhealthy ||
+        state.failureKind == ConnectionFailureKind.proxyUnavailable) {
+      _reconnectToAvailableProxy(context);
+      return;
+    }
+    if (kDebugMode &&
+        ProxyHealthDevControl.instance.findDeadServerEnabled.value) {
+      _autoSelectAndConnect(context);
+      return;
+    }
     final proxyState = context.read<ProxyBloc>().state;
-    final selected =
-        proxyState is ProxyLoaded ? proxyState.selectedProxy : null;
-    if (selected != null && !selected.isEmpty) {
-      bloc.add(ConnectProxyEvent(selected));
+    final selected = proxyState is ProxyLoaded
+        ? proxyState.selectedProxy
+        : null;
+    if (selected != null &&
+        !selected.isEmpty &&
+        proxyState is ProxyLoaded &&
+        proxyState.selectionIsManual) {
+      bloc.add(ConnectProxyEvent(selected, candidates: proxyState.proxies));
     } else {
       _autoSelectAndConnect(context);
     }
@@ -175,8 +226,12 @@ class _HomeScreenState extends State<HomeScreen> {
     _autoConnecting = true;
     final proxyBloc = context.read<ProxyBloc>();
     final connectionBloc = context.read<ProxyConnectionBloc>();
-    final settingsCubit = context.read<ConnectionSettingsCubit>();
     try {
+      final current = proxyBloc.state;
+      if (current is ProxyLoaded && current.proxies.isNotEmpty) {
+        _dispatchAutoConnection(connectionBloc, current.proxies);
+        return;
+      }
       if (proxyBloc.state is! ProxyLoading) {
         proxyBloc.add(const FetchProxiesEvent());
       }
@@ -192,12 +247,8 @@ class _HomeScreenState extends State<HomeScreen> {
             .timeout(const Duration(seconds: 20));
       }
       if (!mounted) return;
-      if (result is ProxyLoaded && !result.selectedProxy.isEmpty) {
-        final candidate = _preferredProxy(result, settingsCubit.state.mode);
-        if (candidate.id != result.selectedProxy.id) {
-          proxyBloc.add(SelectProxyEvent(candidate));
-        }
-        connectionBloc.add(ConnectProxyEvent(candidate));
+      if (result is ProxyLoaded && result.proxies.isNotEmpty) {
+        _dispatchAutoConnection(connectionBloc, result.proxies);
       }
     } on TimeoutException {
       // The card's spinner is driven by ProxyBloc state; nothing else to do.
@@ -206,17 +257,113 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// In stealth mode the auto-picked server should be TLS-camouflaged so
-  /// tunnel traffic is indistinguishable from ordinary HTTPS; fall back to the
-  /// default selection when no TLS server is available. VPN mode (and explicit
-  /// user selections, which never reach this path) are unrestricted.
-  ProxyEntity _preferredProxy(ProxyLoaded loaded, ConnectionMode mode) {
-    if (mode != ConnectionMode.stealth || loaded.selectedProxy.tls) {
-      return loaded.selectedProxy;
+  void _dispatchAutoConnection(
+    ProxyConnectionBloc connectionBloc,
+    List<ProxyEntity> proxies,
+  ) {
+    if (kDebugMode &&
+        ProxyHealthDevControl.instance.findDeadServerEnabled.value) {
+      connectionBloc.add(FindDeadProxyAndConnectEvent(proxies));
+      return;
     }
-    return loaded.proxies.firstWhere(
-      (p) => p.tls && !p.isEmpty,
-      orElse: () => loaded.selectedProxy,
+    connectionBloc.add(FindAndConnectProxyEvent(proxies));
+  }
+
+  void _reconnectToAvailableProxy(BuildContext context) {
+    final proxyState = context.read<ProxyBloc>().state;
+    final candidates = proxyState is ProxyLoaded
+        ? proxyState.proxies
+        : const <ProxyEntity>[];
+    context.read<ProxyConnectionBloc>().add(
+      ReconnectToAvailableProxyEvent(candidates),
+    );
+  }
+}
+
+class _ProxyHealthDevNotice extends StatelessWidget {
+  final AppPalette palette;
+
+  const _ProxyHealthDevNotice({required this.palette});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<String?>(
+      valueListenable: ProxyHealthDevControl.instance.statusMessage,
+      builder: (context, message, _) {
+        if (message == null || message.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        return Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(top: 14),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: palette.primary.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: palette.primary.withValues(alpha: 0.35)),
+          ),
+          child: Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: palette.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ConnectionAlert extends StatelessWidget {
+  final VpnConnectionState state;
+  final AppPalette palette;
+  final VoidCallback onReconnect;
+
+  const _ConnectionAlert({
+    required this.state,
+    required this.palette,
+    required this.onReconnect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isProxyFailure =
+        state.failureKind == ConnectionFailureKind.proxyUnavailable;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.criticalRed.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.criticalRed.withValues(alpha: 0.80),
+        ),
+      ),
+      child: Column(
+        children: [
+          Text(
+            state.errorMessage ?? 'Connection unavailable.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.criticalRed,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: onReconnect,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.criticalRed,
+            ),
+            icon: const Icon(Icons.refresh_rounded),
+            label: Text(isProxyFailure ? 'Refresh and reconnect' : 'Retry'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -256,11 +403,7 @@ class _AppBar extends StatelessWidget {
           const Spacer(),
           GestureDetector(
             onTap: () => Navigator.pushNamed(context, Routes.location),
-            child: Icon(
-              Icons.language,
-              color: palette.textPrimary,
-              size: 26,
-            ),
+            child: Icon(Icons.language, color: palette.textPrimary, size: 26),
           ),
           const SizedBox(width: 18),
           GestureDetector(
@@ -350,10 +493,7 @@ class _SpeedPill extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: TextStyle(
-                  color: palette.textSecondary,
-                  fontSize: 11,
-                ),
+                style: TextStyle(color: palette.textSecondary, fontSize: 11),
               ),
               Text(
                 value,
@@ -384,14 +524,11 @@ class _SelectedServerCard extends StatelessWidget {
         final hasProxy = proxy != null && !proxy.isEmpty;
         final code = proxy?.deep?.egressCountry;
         final country = CountryUtil.name(code);
-        final title =
-            hasProxy
-                ? (country.isNotEmpty
-                    ? country
-                    : (proxy.remark.isEmpty ? proxy.address : proxy.remark))
-                : isLoading
-                    ? 'Loading servers…'
-                    : 'Tap to select a server';
+        final title = hasProxy
+            ? (country.isNotEmpty
+                  ? country
+                  : (proxy.remark.isEmpty ? proxy.address : proxy.remark))
+            : 'Tap to choose or connect automatically';
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,7 +536,7 @@ class _SelectedServerCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(left: 4, bottom: 10),
               child: Text(
-                'Selected Server',
+                'Location',
                 style: TextStyle(
                   color: palette.textSecondary,
                   fontSize: 13,
@@ -410,8 +547,10 @@ class _SelectedServerCard extends StatelessWidget {
             GestureDetector(
               onTap: () => Navigator.pushNamed(context, Routes.location),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   color: palette.card,
                   borderRadius: BorderRadius.circular(16),
@@ -446,26 +585,14 @@ class _SelectedServerCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text.rich(
-                            TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: 'Auto ',
-                                  style: TextStyle(
-                                    color: palette.primary,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: 'Fast Server',
-                                  style: TextStyle(
-                                    color: palette.textPrimary,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
+                          Text(
+                            hasProxy ? 'Selected Location' : 'Select Location',
+                            style: TextStyle(
+                              color: hasProxy
+                                  ? palette.primary
+                                  : palette.textPrimary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                           const SizedBox(height: 2),

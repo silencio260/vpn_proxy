@@ -72,9 +72,10 @@ class ProxyEngineService {
     final granted = await _engine.requestPermission();
     if (!granted) throw Exception('VPN permission denied');
 
-    final remark = parsed.remark.isNotEmpty
-        ? parsed.remark
-        : (proxy.remark.isNotEmpty ? proxy.remark : proxy.address);
+    final remark =
+        parsed.remark.isNotEmpty
+            ? parsed.remark
+            : (proxy.remark.isNotEmpty ? proxy.remark : proxy.address);
 
     debugPrint('[PROXY] starting Xray for ${proxy.type} → $remark');
     await _engine.startV2Ray(
@@ -85,6 +86,30 @@ class ProxyEngineService {
       // server-selection concern (TLS camouflage), never proxyOnly.
       proxyOnly: false,
     );
+  }
+
+  /// Performs a real Xray outbound test without starting Android's VPN service.
+  /// A positive delay proves that the share-link configuration can carry an
+  /// HTTPS request; `-1` means the proxy/configuration could not be used.
+  Future<int> getServerDelay(
+    ProxyEntity proxy, {
+    String testUrl = 'https://www.google.com/generate_204',
+  }) async {
+    await _ensureInitialized();
+    final parsed = FlutterV2ray.parseFromURL(proxy.raw);
+    return _engine.getServerDelay(
+      config: parsed.getFullConfiguration(),
+      url: testUrl,
+    );
+  }
+
+  /// Validates the currently running outbound. The plugin returns `-1` when
+  /// the core is not connected or the test request cannot traverse the proxy.
+  Future<int> getConnectedServerDelay({
+    String testUrl = 'https://www.google.com/generate_204',
+  }) async {
+    await _ensureInitialized();
+    return _engine.getConnectedServerDelay(url: testUrl);
   }
 
   /// Append a local HTTP proxy inbound to the Xray config so in-app requests

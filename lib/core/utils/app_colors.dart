@@ -7,6 +7,10 @@ import 'package:flutter/material.dart';
 /// Legacy static [AppColors] members are kept (mapped to the dark palette) so
 /// existing call-sites continue to compile during the migration.
 class AppColors {
+  /// High-emphasis connection failure red. Kept separate from the softer
+  /// theme error tokens so an unhealthy tunnel is unmistakable in either mode.
+  static const Color criticalRed = Color(0xffFF0000);
+
   // ---------- Light palette (Mash VPN — clean blue/white) ----------
   static const Color lightBackground = Color(0xffEBF1FC);
   static const Color lightCard = Color(0xffFFFFFF);
@@ -165,25 +169,24 @@ class AppPalette extends ThemeExtension<AppPalette> {
     Color? textHint,
     Color? border,
     Color? divider,
-  }) =>
-      AppPalette(
-        background: background ?? this.background,
-        card: card ?? this.card,
-        surface: surface ?? this.surface,
-        bottomSheet: bottomSheet ?? this.bottomSheet,
-        primary: primary ?? this.primary,
-        primaryLight: primaryLight ?? this.primaryLight,
-        primaryDark: primaryDark ?? this.primaryDark,
-        accent: accent ?? this.accent,
-        success: success ?? this.success,
-        warning: warning ?? this.warning,
-        error: error ?? this.error,
-        textPrimary: textPrimary ?? this.textPrimary,
-        textSecondary: textSecondary ?? this.textSecondary,
-        textHint: textHint ?? this.textHint,
-        border: border ?? this.border,
-        divider: divider ?? this.divider,
-      );
+  }) => AppPalette(
+    background: background ?? this.background,
+    card: card ?? this.card,
+    surface: surface ?? this.surface,
+    bottomSheet: bottomSheet ?? this.bottomSheet,
+    primary: primary ?? this.primary,
+    primaryLight: primaryLight ?? this.primaryLight,
+    primaryDark: primaryDark ?? this.primaryDark,
+    accent: accent ?? this.accent,
+    success: success ?? this.success,
+    warning: warning ?? this.warning,
+    error: error ?? this.error,
+    textPrimary: textPrimary ?? this.textPrimary,
+    textSecondary: textSecondary ?? this.textSecondary,
+    textHint: textHint ?? this.textHint,
+    border: border ?? this.border,
+    divider: divider ?? this.divider,
+  );
 
   @override
   AppPalette lerp(ThemeExtension<AppPalette>? other, double t) {

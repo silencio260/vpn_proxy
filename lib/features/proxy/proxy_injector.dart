@@ -12,6 +12,7 @@ import 'domain/usecases/get_proxies_usecase.dart';
 import '../settings/presentation/cubit/connection_settings_cubit.dart';
 import 'presentation/bloc/proxy_bloc/proxy_bloc.dart';
 import 'presentation/bloc/proxy_connection_bloc/proxy_connection_bloc.dart';
+import 'services/proxy_availability_service.dart';
 import 'services/proxy_engine_service.dart';
 
 /// Registers the proxy feature's dependencies. Must run after `initVpn(sl)`
@@ -21,6 +22,12 @@ import 'services/proxy_engine_service.dart';
 Future<void> initProxy(GetIt sl) async {
   // Services (Xray-core engine that dials the proxy share links)
   sl.registerLazySingleton<ProxyEngineService>(() => ProxyEngineService());
+  sl.registerLazySingleton<ProxyAvailabilityService>(
+    () => ProxyAvailabilityService(
+      networkInfo: sl<NetworkInfo>(),
+      engine: sl<ProxyEngineService>(),
+    ),
+  );
 
   // Data sources
   sl.registerLazySingleton<ProxyRemoteDataSource>(
@@ -40,9 +47,7 @@ Future<void> initProxy(GetIt sl) async {
   );
 
   // Use cases
-  sl.registerLazySingleton(
-    () => GetProxiesUseCase(repo: sl<ProxyBaseRepo>()),
-  );
+  sl.registerLazySingleton(() => GetProxiesUseCase(repo: sl<ProxyBaseRepo>()));
   sl.registerLazySingleton(
     () => GetCachedProxiesUseCase(repo: sl<ProxyBaseRepo>()),
   );
@@ -57,6 +62,7 @@ Future<void> initProxy(GetIt sl) async {
   sl.registerFactory(
     () => ProxyConnectionBloc(
       engine: sl<ProxyEngineService>(),
+      availability: sl<ProxyAvailabilityService>(),
       settings: sl<ConnectionSettingsCubit>(),
     ),
   );
